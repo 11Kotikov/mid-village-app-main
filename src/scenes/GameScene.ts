@@ -7,6 +7,12 @@ import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { CURRENT_LEVEL_KEY, LEVEL_URLS, ENEMY_URLS, AUDIO_URLS } from "../assets/paths";
 import { loadGLBAsContainer } from "../assets/loaders";
 import { Level } from "../world/Level";
+import {
+  ENEMY_PATROL_ROUTE,
+  GOBLIN_PATROL_START_NODE_INDICES,
+  ORC_PATROL_START_NODE_INDICES,
+  getPatrolSpawnPoints,
+} from "../world/enemyPatrolRoute";
 import { LEVEL_WALKABLE_SUFFIXES } from "../world/levelWalkableConfig";
 import { EnemyPrefab } from "../entities/EnemyPrefab";
 import { EnemySpawner } from "../entities/EnemySpawner";
@@ -89,45 +95,41 @@ export class GameScene {
     const spawner = new EnemySpawner();
     this.#spawner = spawner;
 
-    const goblins = spawner.spawnMany(
-      goblinPrefab,
-      [new Vector3(2, 0, 2), new Vector3(6, 0, 1), new Vector3(10, 0, 3)],
-      "goblin",
-      { groundMeshes }
-    );
+    const goblins = spawner.spawnMany(goblinPrefab, getPatrolSpawnPoints(GOBLIN_PATROL_START_NODE_INDICES), "goblin", {
+      groundMeshes,
+    });
 
-    const orcs = spawner.spawnMany(
-      orcPrefab,
-      [new Vector3(-3, 0, 4), new Vector3(-7, 0, 2)],
-      "orc",
-      { groundMeshes }
-    );
+    const orcs = spawner.spawnMany(orcPrefab, getPatrolSpawnPoints(ORC_PATROL_START_NODE_INDICES), "orc", {
+      groundMeshes,
+    });
 
     const ai = new YukaWorld(this.#scene);
     this.#ai = ai;
 
-    for (const g of goblins) {
-      ai.addWanderEnemy(g, {
+    for (const [index, g] of goblins.entries()) {
+      ai.addPatrolEnemy(g, {
         groundMeshes,
+        route: ENEMY_PATROL_ROUTE,
+        startNodeIndex: GOBLIN_PATROL_START_NODE_INDICES[index],
         speed: 1.4,
-        wanderRadius: 2.2,
-        wanderDistance: 2.5,
-        wanderJitter: 6.0,
-        roamRadius: 20,
+        maxForce: 12,
+        arriveDeceleration: 2,
+        nodeReachedDistance: 0.5,
         raycastTopY: 10000,
         raycastLength: 20000,
         yawOffset: 0,
       });
     }
 
-    for (const o of orcs) {
-      ai.addWanderEnemy(o, {
+    for (const [index, o] of orcs.entries()) {
+      ai.addPatrolEnemy(o, {
         groundMeshes,
+        route: ENEMY_PATROL_ROUTE,
+        startNodeIndex: ORC_PATROL_START_NODE_INDICES[index],
         speed: 1.0,
-        wanderRadius: 1.8,
-        wanderDistance: 2.8,
-        wanderJitter: 5.0,
-        roamRadius: 16,
+        maxForce: 12,
+        arriveDeceleration: 2.5,
+        nodeReachedDistance: 0.55,
         raycastTopY: 10000,
         raycastLength: 20000,
         yawOffset: 0,

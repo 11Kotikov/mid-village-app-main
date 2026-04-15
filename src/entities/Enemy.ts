@@ -5,11 +5,13 @@ export class Enemy {
   #root: TransformNode;
   #animationGroups: AnimationGroup[];
   #groundOffsetY: number;
+  #activeAnimationName: string | null;
 
   constructor(root: TransformNode, animationGroups: AnimationGroup[]) {
     this.#root = root;
     this.#animationGroups = animationGroups;
     this.#groundOffsetY = 0;
+    this.#activeAnimationName = null;
   }
 
   get root(): TransformNode {
@@ -39,17 +41,32 @@ export class Enemy {
       }
     }
 
+    if (!selected) return false;
+
+    if (this.#activeAnimationName === selected.name) {
+      return true;
+    }
+
     for (const g of this.#animationGroups) {
       g.stop();
     }
 
-    if (!selected) return false;
-
     selected.start(loop);
+    this.#activeAnimationName = selected.name;
     return true;
   }
 
+  playWalk(loop = true): boolean {
+    return this.playOnlyBySuffix("Walk", loop);
+  }
+
+  playIdle(loop = true): boolean {
+    return this.playOnlyBySuffix("Idle", loop);
+  }
+
   playAll(loop = true) {
+    this.#activeAnimationName = null;
+
     for (const g of this.#animationGroups) {
       g.start(loop);
     }
@@ -60,6 +77,8 @@ export class Enemy {
   }
 
   dispose() {
+    this.#activeAnimationName = null;
+
     for (const g of this.#animationGroups) {
       g.stop();
       g.dispose();
