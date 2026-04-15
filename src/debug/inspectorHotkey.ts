@@ -1,7 +1,7 @@
 import type { Scene } from "@babylonjs/core/scene";
 
 export function setupInspectorHotkey(scene: Scene) {
-  window.addEventListener("keydown", async (e) => {
+  const onKeyDown = async (e: KeyboardEvent) => {
     if (e.code !== "KeyI") return;
 
     await import("@babylonjs/inspector");
@@ -11,5 +11,15 @@ export function setupInspectorHotkey(scene: Scene) {
     } else {
       scene.debugLayer.show();
     }
-  });
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+
+    if (scene.debugLayer.isVisible()) {
+      scene.debugLayer.hide();
+    }
+  };
 }

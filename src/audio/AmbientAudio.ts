@@ -3,65 +3,82 @@ import type { AudioEngineV2 } from "@babylonjs/core";
 import type { StaticSound } from "@babylonjs/core";
 
 export class AmbientAudio {
-    #audioEngine: AudioEngineV2 | null;
-    #forestSound: StaticSound | null;
-    #unlockHandler: (() => void) | null;
+  #audioEngine: AudioEngineV2 | null;
+  #forestSound: StaticSound | null;
+  #unlockHandler: (() => void) | null;
 
-    constructor() {
-        this.#audioEngine = null;
-        this.#forestSound = null;
-        this.#unlockHandler = null;
+  constructor() {
+    this.#audioEngine = null;
+    this.#forestSound = null;
+    this.#unlockHandler = null;
+  }
+
+  async init(ambienceUrl: string) {
+    this.dispose();
+
+    try {
+      const audioEngine = await CreateAudioEngineAsync({ volume: 0.5 });
+      const forestSound = await audioEngine.createSoundAsync("forest_sound", ambienceUrl, {
+        loop: true,
+        autoplay: true,
+      });
+
+      this.#audioEngine = audioEngine;
+      this.#forestSound = forestSound;
+
+      await this.#armUnlockAndPlay();
+    } catch (error) {
+      this.dispose();
+      console.warn("Аудио не найдено или не загрузилось", error);
     }
+  }
 
-    async init(ambienceUrl: string) {
-        try {
-            this.#audioEngine = await CreateAudioEngineAsync({ volume: 0.5 });
-            this.#forestSound = await this.#audioEngine.createSoundAsync("forest_sound", ambienceUrl, {
-                loop: true,
-                autoplay: true,
-            });
+  dispose() {
+    this.#removeUnlockHandlers();
 
-            await this.#armUnlockAndPlay();
+    this.#forestSound?.stop();
+    this.#forestSound?.dispose();
+    this.#forestSound = null;
 
-        } catch (error) {
-            console.warn("Аудио не найдено или не загрузилось", error);
-        }
+    this.#audioEngine?.dispose();
+    this.#audioEngine = null;
+  }
 
+  async #armUnlockAndPlay() {
+    const start = async () => {
+      const audioEngine = this.#audioEngine;
+      const forestSound = this.#forestSound;
+
+      if (!audioEngine || !forestSound) return;
+
+      try {
+        await audioEngine.unlockAsync();
+        await audioEngine.resumeAsync();
+        forestSound.play();
+      } catch (error) {
+        console.warn("Звук не запустился", error);
+      }
+
+      this.#removeUnlockHandlers();
+    };
+
+    this.#unlockHandler = () => {
+      void start();
+    };
+
+    window.addEventListener("pointerdown", this.#unlockHandler, { once: true });
+    window.addEventListener("keydown", this.#unlockHandler, { once: true });
+
+    if (this.#audioEngine?.state === "running") {
+      await start();
     }
+  }
 
-    dispose() {
+  #removeUnlockHandlers() {
+    if (!this.#unlockHandler) return;
 
-    }
-
-    async #armUnlockAndPlay() {
-
-        const start = async () => {
-            if (!this.#audioEngine || !this.#forestSound) return;
-
-            try {
-                await this.#audioEngine.unlockAsync();
-                await this.#audioEngine.resumeAsync();
-                this.#forestSound.play();
-            } catch (error) {
-                console.warn("звук не запустился (((", error);
-            }
-
-            if (this.#unlockHandler) {
-                window.removeEventListener("pointerdown", this.#unlockHandler);
-                window.removeEventListener("keydown", this.#unlockHandler);
-                this.#unlockHandler = null;
-            }
-        }
-        this.#unlockHandler = () => {
-            void start();
-        }
-
-        window.addEventListener("pointerdown", this.#unlockHandler, {once: true});
-        window.addEventListener("keydown", this.#unlockHandler, {once: true});
-
-        const engine = this.#audioEngine;
-        if (engine?.state === "running") {
-            await start ();
-        }
-    }
+    window.removeEventListener("pointerdown", this.#unlockHandler);
+    window.removeEventListener("keydown", this.#unlockHandler);
+    this.#unlockHandler = null;
+  }
 }

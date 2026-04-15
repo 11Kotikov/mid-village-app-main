@@ -23,6 +23,7 @@ export class GameScene {
   #level: Level | null;
   #ai: YukaWorld | null;
   #audio: AmbientAudio | null;
+  #disposeInspectorHotkey: (() => void) | null;
 
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.#canvas = canvas;
@@ -33,6 +34,7 @@ export class GameScene {
     this.#prefabs = [];
     this.#ai = null;
     this.#audio = null;
+    this.#disposeInspectorHotkey = null;
 
     const camera = new ArcRotateCamera(
       "cam",
@@ -46,7 +48,7 @@ export class GameScene {
 
     new HemisphericLight("light", new Vector3(0, 1, 0), this.#scene);
 
-    setupInspectorHotkey(this.#scene);
+    this.#disposeInspectorHotkey = setupInspectorHotkey(this.#scene);
   }
 
   get scene(): Scene {
@@ -131,11 +133,9 @@ export class GameScene {
         yawOffset: 0,
       });
     }
-    
     const audio = new AmbientAudio();
     this.#audio = audio;
     await audio.init(AUDIO_URLS.ambienceForest);
-
   }
 
   update(dt: number) {
@@ -144,6 +144,12 @@ export class GameScene {
   }
 
   dispose() {
+    this.#disposeInspectorHotkey?.();
+    this.#disposeInspectorHotkey = null;
+
+    this.#audio?.dispose();
+    this.#audio = null;
+
     this.#ai?.dispose();
     this.#ai = null;
 
