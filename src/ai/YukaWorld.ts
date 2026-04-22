@@ -21,6 +21,8 @@ type PatrolEnemyOptions = {
   maxForce?: number;
   arriveDeceleration?: number;
   nodeReachedDistance?: number;
+  separationRadius?: number;
+  separationWeight?: number;
   raycastTopY?: number;
   raycastLength?: number;
   yawOffset?: number;
@@ -70,6 +72,7 @@ export class YukaWorld {
     vehicle.maxSpeed = opts.speed ?? 1.2;
     vehicle.maxForce = opts.maxForce ?? 10;
     vehicle.updateOrientation = false;
+
     const arriveBehavior = new YUKA.ArriveBehavior(
       new YUKA.Vector3(startNode.position.x, 0, startNode.position.z),
       opts.arriveDeceleration ?? 2,
@@ -77,6 +80,17 @@ export class YukaWorld {
     );
 
     vehicle.steering.add(arriveBehavior);
+
+    const separationRadius = opts.separationRadius ?? 2.5;
+    if (separationRadius > 0) {
+      const separationBehavior = new YUKA.SeparationBehavior();
+      separationBehavior.weight = opts.separationWeight ?? 0.7;
+
+      vehicle.updateNeighborhood = true;
+      vehicle.neighborhoodRadius = separationRadius;
+      vehicle.steering.add(separationBehavior);
+    }
+
     this.#manager.add(vehicle);
 
     const agent: AgentEntry = {
@@ -171,7 +185,6 @@ export class YukaWorld {
     }
 
     agent.waitTimeLeft = pauseSeconds;
-    agent.arriveBehavior.active = false;
     this.#playIdle(agent.enemy);
   }
 
