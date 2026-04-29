@@ -9,6 +9,10 @@ export const ENEMY_URLS = {
   orc: "/models/enemies/Orc.glb",
 } as const;
 
+export const PLAYER_URLS = {
+  hoodedAdventurer: "/models/player/Hooded_Adventurer.glb",
+} as const;
+
 export const AUDIO_URLS = {
   ambienceForest: "/audio/forest.mp3",
 } as const;

@@ -4,7 +4,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 
-import { CURRENT_LEVEL_KEY, LEVEL_URLS, ENEMY_URLS, AUDIO_URLS } from "../assets/paths";
+import { CURRENT_LEVEL_KEY, LEVEL_URLS, ENEMY_URLS, PLAYER_URLS, AUDIO_URLS } from "../assets/paths";
 import { loadGLBAsContainer } from "../assets/loaders";
 import { Level } from "../world/Level";
 import {
@@ -14,10 +14,12 @@ import {
   getPatrolSpawnPoints,
 } from "../world/enemyPatrolRoute";
 import { LEVEL_WALKABLE_SUFFIXES } from "../world/levelWalkableConfig";
+import { Enemy } from "../entities/Enemy";
 import { EnemyPrefab } from "../entities/EnemyPrefab";
 import { EnemySpawner } from "../entities/EnemySpawner";
 import { YukaWorld } from "../ai/YukaWorld";
 import { setupInspectorHotkey } from "../debug/inspectorHotkey";
+import { ClickToMovePlayer } from "../player/ClickToMovePlayer";
 
 import { AmbientAudio } from "../audio/AmbientAudio";
 
@@ -28,6 +30,8 @@ export class GameScene {
   #prefabs: EnemyPrefab[];
   #level: Level | null;
   #ai: YukaWorld | null;
+  #player: Enemy | null;
+  #playerController: ClickToMovePlayer | null;
   #audio: AmbientAudio | null;
   #disposeInspectorHotkey: (() => void) | null;
 
@@ -39,6 +43,8 @@ export class GameScene {
     this.#spawner = null;
     this.#prefabs = [];
     this.#ai = null;
+    this.#player = null;
+    this.#playerController = null;
     this.#audio = null;
     this.#disposeInspectorHotkey = null;
 
@@ -66,6 +72,7 @@ export class GameScene {
     const levelContainer = await loadGLBAsContainer(this.#scene, levelUrl);
     const goblinContainer = await loadGLBAsContainer(this.#scene, ENEMY_URLS.goblin);
     const orcContainer = await loadGLBAsContainer(this.#scene, ENEMY_URLS.orc);
+    const playerContainer = await loadGLBAsContainer(this.#scene, PLAYER_URLS.hoodedAdventurer);
 
     const level = new Level(this.#scene, levelContainer, {
       scale: 50,
@@ -89,8 +96,11 @@ export class GameScene {
     const orcPrefab = new EnemyPrefab(this.#scene, orcContainer, "orc", {
       targetHeight: 2.2,
     });
+    const playerPrefab = new EnemyPrefab(this.#scene, playerContainer, "player", {
+      targetHeight: 1.85,
+    });
 
-    this.#prefabs.push(goblinPrefab, orcPrefab);
+    this.#prefabs.push(goblinPrefab, orcPrefab, playerPrefab);
 
     const spawner = new EnemySpawner();
     this.#spawner = spawner;
@@ -139,12 +149,34 @@ export class GameScene {
         yawOffset: 0,
       });
     }
+
+    const playerStartPosition =
+      ENEMY_PATROL_ROUTE[1]?.position.clone() ?? ENEMY_PATROL_ROUTE[0]?.position.clone() ?? Vector3.Zero();
+
+    const player = playerPrefab.spawn(playerStartPosition, "player", {
+      groundMeshes,
+      logSizing: true,
+    });
+    player.playIdle(true);
+
+    this.#player = player;
+    this.#playerController = new ClickToMovePlayer(this.#scene, player, {
+      groundMeshes,
+      speed: 4.8,
+      stopDistance: 0.2,
+      clickThresholdPx: 8,
+      raycastTopY: 10000,
+      raycastLength: 20000,
+      yawOffset: 0,
+    });
+
     const audio = new AmbientAudio();
     this.#audio = audio;
     await audio.init(AUDIO_URLS.ambienceForest);
   }
 
   update(dt: number) {
+    this.#playerController?.update(dt);
     this.#ai?.update(dt);
     this.#spawner?.update(dt);
   }
@@ -155,6 +187,12 @@ export class GameScene {
 
     this.#audio?.dispose();
     this.#audio = null;
+
+    this.#playerController?.dispose();
+    this.#playerController = null;
+
+    this.#player?.dispose();
+    this.#player = null;
 
     this.#ai?.dispose();
     this.#ai = null;

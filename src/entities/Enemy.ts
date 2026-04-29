@@ -60,6 +60,14 @@ export class Enemy {
     return this.playOnlyBySuffix("Walk", loop);
   }
 
+  playRun(loop = true): boolean {
+    return (
+      this.playOnlyBySuffix("Run", loop) ||
+      this.playOnlyBySuffix("Running", loop) ||
+      this.playOnlyBySuffix("Sprint", loop)
+    );
+  }
+
   playIdle(loop = true): boolean {
     return this.playOnlyBySuffix("Idle", loop);
   }
