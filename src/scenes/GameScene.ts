@@ -157,7 +157,9 @@ export class GameScene {
       groundMeshes,
       logSizing: true,
     });
-    player.playIdle(true);
+    if (!player.playOnlyBySuffix("Idle_Neutral", true) && !player.playIdle(true)) {
+      player.playWalk(true);
+    }
 
     this.#player = player;
     this.#playerController = new ClickToMovePlayer(this.#scene, player, {

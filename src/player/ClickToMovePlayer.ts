@@ -47,7 +47,7 @@ export class ClickToMovePlayer {
     this.#clickThresholdSq = Math.pow(opts.clickThresholdPx ?? 8, 2);
     this.#raycastTopY = opts.raycastTopY ?? 10000;
     this.#raycastLength = opts.raycastLength ?? 20000;
-    this.#yawOffset = opts.yawOffset ?? 0;
+    this.#yawOffset = opts.yawOffset ?? 1;
     this.#pointerObserver = null;
     this.#pointerDown = null;
 
@@ -178,7 +178,10 @@ export class ClickToMovePlayer {
   }
 
   #playIdle() {
-    if (!this.#player.playIdle(true)) {
+    if (
+      !this.#player.playOnlyBySuffix("Idle_Neutral", true) &&
+      !this.#player.playIdle(true)
+    ) {
       this.#player.playWalk(true);
     }
   }
