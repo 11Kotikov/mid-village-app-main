@@ -23,6 +23,8 @@ import { ClickToMovePlayer } from "../player/ClickToMovePlayer";
 
 import { AmbientAudio } from "../audio/AmbientAudio";
 
+import { attachWASDControls } from "./cameraControls";
+
 export class GameScene {
   #scene: Scene;
   #canvas: HTMLCanvasElement;
@@ -34,11 +36,11 @@ export class GameScene {
   #playerController: ClickToMovePlayer | null;
   #audio: AmbientAudio | null;
   #disposeInspectorHotkey: (() => void) | null;
+  #disposeWASDControls: (() => void) | null;
 
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.#canvas = canvas;
     this.#scene = new Scene(engine);
-
     this.#level = null;
     this.#spawner = null;
     this.#prefabs = [];
@@ -47,16 +49,7 @@ export class GameScene {
     this.#playerController = null;
     this.#audio = null;
     this.#disposeInspectorHotkey = null;
-
-    const camera = new ArcRotateCamera(
-      "cam",
-      Math.PI / 2,
-      Math.PI / 3,
-      120,
-      new Vector3(0, 10, 0),
-      this.#scene
-    );
-    camera.attachControl(this.#canvas, true);
+    this.#disposeWASDControls = null;
 
     new HemisphericLight("light", new Vector3(0, 1, 0), this.#scene);
 
@@ -68,6 +61,10 @@ export class GameScene {
   }
 
   async init() {
+
+    const camera = this.#createCamera();
+    this.#disposeWASDControls = attachWASDControls(camera, this.#scene, 5);
+
     const levelUrl = LEVEL_URLS[CURRENT_LEVEL_KEY];
     const levelContainer = await loadGLBAsContainer(this.#scene, levelUrl);
     const goblinContainer = await loadGLBAsContainer(this.#scene, ENEMY_URLS.goblin);
@@ -177,6 +174,13 @@ export class GameScene {
     await audio.init(AUDIO_URLS.ambienceForest);
   }
 
+  #createCamera() {
+    const camera = new ArcRotateCamera("camera", Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.#scene);
+    camera.attachControl(this.#canvas, true);
+    camera.wheelPrecision = 50;
+    return camera;
+  }
+
   update(dt: number) {
     this.#playerController?.update(dt);
     this.#ai?.update(dt);
@@ -186,6 +190,9 @@ export class GameScene {
   dispose() {
     this.#disposeInspectorHotkey?.();
     this.#disposeInspectorHotkey = null;
+
+    this.#disposeWASDControls?.(); // очистка WASD
+    this.#disposeWASDControls = null;
 
     this.#audio?.dispose();
     this.#audio = null;
