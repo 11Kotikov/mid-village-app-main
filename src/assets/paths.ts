@@ -16,3 +16,7 @@ export const PLAYER_URLS = {
 export const AUDIO_URLS = {
   ambienceForest: "/audio/forest.mp3",
 } as const;
+
+export const PARTICLES_URLS = {
+  portal: "/particles/flare3_portal.png",
+} as const;

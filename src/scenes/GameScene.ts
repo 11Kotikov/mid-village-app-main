@@ -24,6 +24,7 @@ import { ClickToMovePlayer } from "../player/ClickToMovePlayer";
 import { AmbientAudio } from "../audio/AmbientAudio";
 
 import { attachWASDControls } from "./cameraControls";
+import { PortalParticleSystem } from "../effects/PortalParticleSystem";
 
 export class GameScene {
   #scene: Scene;
@@ -37,6 +38,7 @@ export class GameScene {
   #audio: AmbientAudio | null;
   #disposeInspectorHotkey: (() => void) | null;
   #disposeWASDControls: (() => void) | null;
+  #portal: PortalParticleSystem | null = null;
 
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.#canvas = canvas;
@@ -147,8 +149,7 @@ export class GameScene {
       });
     }
 
-    const playerStartPosition =
-      ENEMY_PATROL_ROUTE[1]?.position.clone() ?? ENEMY_PATROL_ROUTE[0]?.position.clone() ?? Vector3.Zero();
+    const playerStartPosition = new Vector3(-10, 0, 30);
 
     const player = playerPrefab.spawn(playerStartPosition, "player", {
       groundMeshes,
@@ -172,10 +173,30 @@ export class GameScene {
     const audio = new AmbientAudio();
     this.#audio = audio;
     await audio.init(AUDIO_URLS.ambienceForest);
+
+    // Эффект портала
+    this.#portal = new PortalParticleSystem(this.scene, {
+      center: new Vector3(-10 , 6, 30),
+      orbitRadius: 2,
+      angularSpeed: 2,
+      emitRate: 1000,
+      maxLifeTime: 8,
+      minSize: 0.05,
+      maxSize: 0.1,
+      useRectEmitter: true,
+      rectWidth: 4,
+      rectHeight: 3,
+    });
+
   }
 
   #createCamera() {
-    const camera = new ArcRotateCamera("camera", Math.PI / 2, Math.PI / 3, 20, Vector3.Zero(), this.#scene);
+    const camera = new ArcRotateCamera("camera",
+      2 * Math.PI / 3,
+      Math.PI / 3,
+      60,
+      new Vector3(10, 0, 10),
+      this.#scene);
     camera.attachControl(this.#canvas, true);
     camera.wheelPrecision = 50;
     return camera;
@@ -185,6 +206,7 @@ export class GameScene {
     this.#playerController?.update(dt);
     this.#ai?.update(dt);
     this.#spawner?.update(dt);
+    this.#portal?.update(dt);
   }
 
   dispose() {
@@ -211,6 +233,9 @@ export class GameScene {
 
     this.#spawner?.disposeAll();
     this.#spawner = null;
+
+    this.#portal?.dispose();
+    this.#portal = null;
 
     for (const p of this.#prefabs) {
       p.dispose();
