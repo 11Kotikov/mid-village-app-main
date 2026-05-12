@@ -1,5 +1,6 @@
 import type { Engine } from "@babylonjs/core/Engines/engine";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import type { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Ray } from "@babylonjs/core/Culling/ray";
@@ -51,6 +52,11 @@ type ActivePortal = {
 const PORTAL_COOLDOWN_SECONDS = 1;
 const PORTAL_RAYCAST_TOP_Y = 10000;
 const PORTAL_RAYCAST_LENGTH = 20000;
+const PLAYER_ATTACK_COOLDOWN_SECONDS = 0.55;
+const PLAYER_ATTACK_MANA_COST = 4;
+const PLAYER_MANA_REGEN_PER_SECOND = 7;
+const PLAYER_ATTACK_DAMAGE = 24;
+const PLAYER_ATTACK_RANGE = 2.4;
 
 export class GameScene {
   #scene: Scene;
@@ -70,8 +76,16 @@ export class GameScene {
   #disposeInspectorHotkey: (() => void) | null;
   #disposeWASDControls: (() => void) | null;
   #activePortals: ActivePortal[];
+  #combatEnemies: Enemy[];
+  #lastTarget: Enemy | null;
+  #attackCooldown: number;
   #portalCooldown: number;
   #isChangingLevel: boolean;
+  #hudRoot: HTMLDivElement | null;
+  #healthFill: HTMLDivElement | null;
+  #manaFill: HTMLDivElement | null;
+  #targetFill: HTMLDivElement | null;
+  #hudStatus: HTMLDivElement | null;
 
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.#canvas = canvas;
@@ -90,12 +104,21 @@ export class GameScene {
     this.#disposeInspectorHotkey = null;
     this.#disposeWASDControls = null;
     this.#activePortals = [];
+    this.#combatEnemies = [];
+    this.#lastTarget = null;
+    this.#attackCooldown = 0;
     this.#portalCooldown = 0;
     this.#isChangingLevel = false;
+    this.#hudRoot = null;
+    this.#healthFill = null;
+    this.#manaFill = null;
+    this.#targetFill = null;
+    this.#hudStatus = null;
 
     new HemisphericLight("light", new Vector3(0, 1, 0), this.#scene);
 
     this.#disposeInspectorHotkey = setupInspectorHotkey(this.#scene);
+    this.#createHud();
   }
 
   get scene(): Scene {
@@ -208,6 +231,14 @@ export class GameScene {
         groundMeshes,
         logSizing: true,
       });
+      this.#player.configureStats({
+        maxHealth: 120,
+        health: 120,
+        maxMana: 80,
+        mana: 80,
+        attackDamage: PLAYER_ATTACK_DAMAGE,
+        attackRange: PLAYER_ATTACK_RANGE,
+      });
     } else {
       this.#movePlayerTo(spawnPosition, groundMeshes);
     }
@@ -250,6 +281,7 @@ export class GameScene {
       raycastTopY: 10000,
       raycastLength: 20000,
       yawOffset: 0,
+      onClick: (hit) => this.#handlePlayerAttackClick(hit),
     });
   }
 
@@ -282,15 +314,46 @@ export class GameScene {
     const ai = new YukaWorld(this.#scene);
     this.#ai = ai;
 
+    for (const goblin of goblins) {
+      goblin.configureStats({
+        maxHealth: 42,
+        health: 42,
+        maxMana: 10,
+        mana: 10,
+        attackDamage: 8,
+        attackRange: 1.8,
+      });
+    }
+
+    for (const orc of orcs) {
+      orc.configureStats({
+        maxHealth: 72,
+        health: 72,
+        maxMana: 15,
+        mana: 15,
+        attackDamage: 15,
+        attackRange: 2.1,
+      });
+    }
+
+    this.#combatEnemies.push(...goblins, ...orcs);
+
     for (const [index, g] of goblins.entries()) {
       ai.addPatrolEnemy(g, {
         groundMeshes,
         route: ENEMY_PATROL_ROUTE,
+        player: this.#player ?? undefined,
         startNodeIndex: GOBLIN_PATROL_START_NODE_INDICES[index],
         speed: 1.4,
+        chaseSpeed: 3.2,
         maxForce: 12,
         arriveDeceleration: 2,
         nodeReachedDistance: 0.5,
+        aggroRange: 13,
+        loseRange: 20,
+        attackRange: g.stats.attackRange,
+        attackDamage: g.stats.attackDamage,
+        attackCooldown: 1.1,
         separationRadius: 2.4,
         separationWeight: 0.7,
         raycastTopY: 10000,
@@ -303,11 +366,18 @@ export class GameScene {
       ai.addPatrolEnemy(o, {
         groundMeshes,
         route: ENEMY_PATROL_ROUTE,
+        player: this.#player ?? undefined,
         startNodeIndex: ORC_PATROL_START_NODE_INDICES[index],
         speed: 1.0,
+        chaseSpeed: 2.7,
         maxForce: 12,
         arriveDeceleration: 2.5,
         nodeReachedDistance: 0.55,
+        aggroRange: 15,
+        loseRange: 23,
+        attackRange: o.stats.attackRange,
+        attackDamage: o.stats.attackDamage,
+        attackCooldown: 1.45,
         separationRadius: 2.8,
         separationWeight: 0.85,
         raycastTopY: 10000,
@@ -378,15 +448,122 @@ export class GameScene {
       portal.effect.update(dt);
     }
 
+    this.#updateCombat(dt);
+
     if (this.#isChangingLevel) {
       return;
     }
 
     this.#portalCooldown = Math.max(0, this.#portalCooldown - dt);
-    this.#playerController?.update(dt);
+    if (!this.#player?.isDead) {
+      this.#playerController?.update(dt);
+    }
     this.#ai?.update(dt);
     this.#spawner?.update(dt);
     this.#checkPortalTransitions();
+  }
+
+  #updateCombat(dt: number) {
+    this.#attackCooldown = Math.max(0, this.#attackCooldown - dt);
+
+    if (this.#player && !this.#player.isDead) {
+      this.#player.restoreMana(PLAYER_MANA_REGEN_PER_SECOND * dt);
+      this.#player.update(dt);
+    }
+
+    if (this.#lastTarget?.isDead) {
+      this.#lastTarget = null;
+    }
+
+    this.#updateHud();
+  }
+
+  #handlePlayerAttackClick(hit: PickingInfo | null): boolean {
+    if (!this.#player || this.#player.isDead) {
+      return false;
+    }
+
+    const clickedEnemy = this.#getEnemyFromPickedMesh(hit?.pickedMesh ?? null);
+    const target = clickedEnemy ?? this.#findNearestEnemyInRange();
+
+    if (!target || target.isDead) {
+      return false;
+    }
+
+    this.#lastTarget = target;
+    return this.#tryPlayerAttack(target);
+  }
+
+  #getEnemyFromPickedMesh(mesh: AbstractMesh | null): Enemy | null {
+    const combatant = mesh?.metadata?.combatant;
+
+    if (!(combatant instanceof Enemy) || combatant === this.#player || combatant.isDead) {
+      return null;
+    }
+
+    return this.#combatEnemies.includes(combatant) ? combatant : null;
+  }
+
+  #findNearestEnemyInRange(): Enemy | null {
+    if (!this.#player) {
+      return null;
+    }
+
+    let nearest: Enemy | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const enemy of this.#combatEnemies) {
+      if (enemy.isDead) {
+        continue;
+      }
+
+      const distance = this.#player.distanceTo(enemy);
+
+      if (distance <= this.#player.stats.attackRange && distance < nearestDistance) {
+        nearest = enemy;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearest;
+  }
+
+  #tryPlayerAttack(target: Enemy): boolean {
+    if (!this.#player || target.isDead || this.#attackCooldown > 0) {
+      return true;
+    }
+
+    const distance = this.#player.distanceTo(target);
+
+    if (distance > this.#player.stats.attackRange) {
+      this.#hudStatusText("Too far");
+      return true;
+    }
+
+    if (!this.#player.spendMana(PLAYER_ATTACK_MANA_COST)) {
+      this.#hudStatusText("No mana");
+      return true;
+    }
+
+    this.#attackCooldown = PLAYER_ATTACK_COOLDOWN_SECONDS;
+    this.#faceTarget(this.#player, target.root.position);
+    this.#player.playAttack(false);
+    target.takeDamage(this.#player.stats.attackDamage);
+    this.#hudStatusText(target.isDead ? "Enemy defeated" : `Hit ${this.#player.stats.attackDamage}`);
+    this.#updateHud();
+    return true;
+  }
+
+  #faceTarget(actor: Enemy, target: Vector3) {
+    const dx = target.x - actor.root.position.x;
+    const dz = target.z - actor.root.position.z;
+
+    if (dx * dx + dz * dz <= 0.0001) {
+      return;
+    }
+
+    actor.root.rotationQuaternion = null;
+    actor.root.rotation.y = Math.atan2(dx, dz);
   }
 
   #checkPortalTransitions() {
@@ -437,6 +614,8 @@ export class GameScene {
       portal.effect.dispose();
     }
     this.#activePortals = [];
+    this.#combatEnemies = [];
+    this.#lastTarget = null;
 
     this.#level?.dispose();
     this.#level = null;
@@ -461,6 +640,8 @@ export class GameScene {
     this.#player?.dispose();
     this.#player = null;
 
+    this.#disposeHud();
+
     for (const p of this.#prefabs) {
       p.dispose();
     }
@@ -470,5 +651,101 @@ export class GameScene {
     this.#playerPrefab = null;
 
     this.#scene.dispose();
+  }
+
+  #createHud() {
+    const hudRoot = document.createElement("div");
+    hudRoot.className = "game-hud";
+
+    const playerPanel = document.createElement("div");
+    playerPanel.className = "hud-panel";
+
+    const playerTitle = document.createElement("div");
+    playerTitle.className = "hud-title";
+    playerTitle.textContent = "Player";
+
+    const healthBar = this.#createHudBar("Health", "hud-fill-health");
+    const manaBar = this.#createHudBar("Mana", "hud-fill-mana");
+    this.#healthFill = healthBar.fill;
+    this.#manaFill = manaBar.fill;
+
+    playerPanel.append(playerTitle, healthBar.root, manaBar.root);
+
+    const targetPanel = document.createElement("div");
+    targetPanel.className = "hud-panel";
+
+    const targetTitle = document.createElement("div");
+    targetTitle.className = "hud-title";
+    targetTitle.textContent = "Target";
+
+    const targetBar = this.#createHudBar("Health", "hud-fill-target");
+    this.#targetFill = targetBar.fill;
+
+    this.#hudStatus = document.createElement("div");
+    this.#hudStatus.className = "hud-status";
+    this.#hudStatus.textContent = "Click an enemy to attack";
+
+    targetPanel.append(targetTitle, targetBar.root, this.#hudStatus);
+    hudRoot.append(playerPanel, targetPanel);
+    document.body.append(hudRoot);
+    this.#hudRoot = hudRoot;
+  }
+
+  #createHudBar(label: string, fillClassName: string) {
+    const root = document.createElement("div");
+    root.className = "hud-bar";
+
+    const text = document.createElement("span");
+    text.textContent = label;
+
+    const track = document.createElement("div");
+    track.className = "hud-track";
+
+    const fill = document.createElement("div");
+    fill.className = `hud-fill ${fillClassName}`;
+
+    track.append(fill);
+    root.append(text, track);
+
+    return { root, fill };
+  }
+
+  #updateHud() {
+    if (!this.#player || !this.#healthFill || !this.#manaFill || !this.#targetFill) {
+      return;
+    }
+
+    this.#setFill(this.#healthFill, this.#player.stats.health, this.#player.stats.maxHealth);
+    this.#setFill(this.#manaFill, this.#player.stats.mana, this.#player.stats.maxMana);
+
+    if (this.#lastTarget && !this.#lastTarget.isDead) {
+      this.#setFill(this.#targetFill, this.#lastTarget.stats.health, this.#lastTarget.stats.maxHealth);
+    } else {
+      this.#setFill(this.#targetFill, 0, 1);
+    }
+
+    if (this.#player.isDead) {
+      this.#hudStatusText("You died");
+    }
+  }
+
+  #setFill(fill: HTMLDivElement, value: number, maxValue: number) {
+    const percent = maxValue <= 0 ? 0 : Math.max(0, Math.min(1, value / maxValue));
+    fill.style.width = `${percent * 100}%`;
+  }
+
+  #hudStatusText(text: string) {
+    if (this.#hudStatus) {
+      this.#hudStatus.textContent = text;
+    }
+  }
+
+  #disposeHud() {
+    this.#hudRoot?.remove();
+    this.#hudRoot = null;
+    this.#healthFill = null;
+    this.#manaFill = null;
+    this.#targetFill = null;
+    this.#hudStatus = null;
   }
 }

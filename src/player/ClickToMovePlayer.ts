@@ -2,6 +2,7 @@ import { Ray } from "@babylonjs/core/Culling/ray";
 import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import type { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo";
 import type { Observer } from "@babylonjs/core/Misc/observable";
 import type { Scene } from "@babylonjs/core/scene";
 
@@ -15,6 +16,7 @@ type ClickToMovePlayerOptions = {
   raycastTopY?: number;
   raycastLength?: number;
   yawOffset?: number;
+  onClick?: (hit: PickingInfo | null) => boolean;
 };
 
 type PointerDownState = {
@@ -34,6 +36,7 @@ export class ClickToMovePlayer {
   #raycastTopY: number;
   #raycastLength: number;
   #yawOffset: number;
+  #onClick: ((hit: PickingInfo | null) => boolean) | null;
   #pointerObserver: Observer<PointerInfo> | null;
   #pointerDown: PointerDownState;
 
@@ -48,6 +51,7 @@ export class ClickToMovePlayer {
     this.#raycastTopY = opts.raycastTopY ?? 10000;
     this.#raycastLength = opts.raycastLength ?? 20000;
     this.#yawOffset = opts.yawOffset ?? 1;
+    this.#onClick = opts.onClick ?? null;
     this.#pointerObserver = null;
     this.#pointerDown = null;
 
@@ -139,6 +143,13 @@ export class ClickToMovePlayer {
     const dragDistanceSq = dx * dx + dy * dy;
 
     if (dragDistanceSq > this.#clickThresholdSq) {
+      return;
+    }
+
+    const clickedHit = this.#scene.pick(this.#scene.pointerX, this.#scene.pointerY);
+
+    if (this.#onClick?.(clickedHit ?? null)) {
+      this.#destination = null;
       return;
     }
 
