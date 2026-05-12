@@ -16,6 +16,8 @@ type PatrolEnemyOptions = {
   groundMeshes: AbstractMesh[];
   route: PatrolRouteNode[];
   player?: Enemy;
+  respawnPosition?: Vector3;
+  respawnDelaySeconds?: number;
 
   startNodeIndex?: number;
   speed?: number;
@@ -46,6 +48,9 @@ type AgentEntry = {
   player: Enemy | null;
   mode: AgentMode;
   spawnPosition: Vector3;
+  respawnNodeIndex: number;
+  respawnDelaySeconds: number;
+  respawnTimeLeft: number | null;
   currentNodeIndex: number;
   waitTimeLeft: number;
   patrolSpeed: number;
@@ -66,6 +71,8 @@ export class YukaWorld {
   #scene: Scene;
   #manager: YUKA.EntityManager;
   #agents: AgentEntry[];
+
+  static readonly DEFAULT_RESPAWN_DELAY_SECONDS = 180;
 
   constructor(scene: Scene) {
     this.#scene = scene;
@@ -122,7 +129,13 @@ export class YukaWorld {
       route,
       player: opts.player ?? null,
       mode: "patrol",
-      spawnPosition: enemy.root.position.clone(),
+      // Точка возрождения врага. По умолчанию это место, где враг был создан.
+      // Чтобы изменить точку respawn для конкретного врага, передай respawnPosition
+      // в ai.addPatrolEnemy(...) из GameScene.ts.
+      spawnPosition: opts.respawnPosition?.clone() ?? enemy.root.position.clone(),
+      respawnNodeIndex: startNodeIndex,
+      respawnDelaySeconds: opts.respawnDelaySeconds ?? YukaWorld.DEFAULT_RESPAWN_DELAY_SECONDS,
+      respawnTimeLeft: null,
       currentNodeIndex: startNodeIndex,
       waitTimeLeft: 0,
       patrolSpeed,
@@ -262,8 +275,11 @@ export class YukaWorld {
     agent.attackCooldownLeft = Math.max(0, agent.attackCooldownLeft - dt);
 
     if (agent.enemy.isDead) {
+      this.#updateRespawn(agent, dt);
       return;
     }
+
+    agent.respawnTimeLeft = null;
 
     const player = agent.player;
     const playerCanBeChased = player && !player.isDead;
@@ -324,6 +340,46 @@ export class YukaWorld {
     agent.attackCooldownLeft = agent.attackCooldown;
     agent.enemy.playAttack(false);
     player.takeDamage(agent.attackDamage);
+  }
+
+  #updateRespawn(agent: AgentEntry, dt: number) {
+    agent.vehicle.velocity.set(0, 0, 0);
+    agent.arriveBehavior.active = false;
+    agent.waitTimeLeft = 0;
+
+    if (agent.respawnTimeLeft == null) {
+      agent.respawnTimeLeft = agent.respawnDelaySeconds;
+    }
+
+    agent.respawnTimeLeft = Math.max(0, agent.respawnTimeLeft - dt);
+
+    if (agent.respawnTimeLeft > 0) {
+      return;
+    }
+
+    this.#respawnAgent(agent);
+  }
+
+  #respawnAgent(agent: AgentEntry) {
+    agent.respawnTimeLeft = null;
+    agent.mode = "patrol";
+    agent.currentNodeIndex = agent.respawnNodeIndex;
+    agent.waitTimeLeft = 0;
+    agent.attackCooldownLeft = 0;
+    agent.vehicle.maxSpeed = agent.patrolSpeed;
+    agent.vehicle.position.set(agent.spawnPosition.x, 0, agent.spawnPosition.z);
+    agent.vehicle.velocity.set(0, 0, 0);
+    agent.arriveBehavior.target.set(agent.spawnPosition.x, 0, agent.spawnPosition.z);
+    agent.arriveBehavior.active = false;
+    agent.enemy.respawn(agent.spawnPosition);
+    this.#syncGround(agent);
+
+    if (this.#hasReachedCurrentNode(agent)) {
+      this.#enterPause(agent);
+      return;
+    }
+
+    this.#moveToNextNode(agent);
   }
 
   #faceTarget(enemy: Enemy, target: Vector3, yawOffset: number) {

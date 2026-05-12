@@ -20,12 +20,27 @@ export const PLAYER_URLS = {
   hoodedAdventurer: "/models/player/Hooded_Adventurer.glb",
 } as const;
 
+export const NPC_URLS = {
+  witch: "/models/npc/Witch.glb",
+} as const;
+
+export const POTION_URLS = {
+  health: "/models/potions/Health_Potion.glb",
+  mana: "/models/potions/Mana_Potion.glb",
+} as const;
+
+export const PROP_URLS = {
+  magicCauldron: "/models/stuff/Magic_Cauldron.glb",
+} as const;
+
 export const AUDIO_URLS = {
   ambienceForest: "/audio/forest.mp3",
+  ambienceVillage: "/audio/village.wav",
 } as const;
 
 export const PARTICLES_URLS = {
   portal: "/particles/flare3_portal.png",
+  fireBall: "/particles/fire_ball.jpg",
 } as const;
 
 export const SKYBOX_URLS = {

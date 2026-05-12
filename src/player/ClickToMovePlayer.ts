@@ -66,6 +66,11 @@ export class ClickToMovePlayer {
   update(dt: number) {
     if (dt <= 0) return;
 
+    if (this.#player.isDead) {
+      this.#destination = null;
+      return;
+    }
+
     const destination = this.#destination;
     if (!destination) {
       this.#syncGround();
@@ -112,6 +117,12 @@ export class ClickToMovePlayer {
   }
 
   #handlePointer(pointerInfo: PointerInfo) {
+    if (this.#player.isDead) {
+      this.#destination = null;
+      this.#pointerDown = null;
+      return;
+    }
+
     if (pointerInfo.type === PointerEventTypes.POINTERDOWN) {
       const event = pointerInfo.event;
 

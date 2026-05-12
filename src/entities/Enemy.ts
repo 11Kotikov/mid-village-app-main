@@ -21,19 +21,30 @@ type CombatStatsOptions = Partial<Omit<CombatStats, "health" | "mana">> & {
   mana?: number;
 };
 
+type RespawnOptions = {
+  health?: number;
+  mana?: number;
+};
+
+const DEFAULT_DEATH_DESPAWN_SECONDS = 3.5;
+
 export class Enemy {
   #root: TransformNode;
   #animationGroups: AnimationGroup[];
+  #baseScaling: Vector3;
   #groundOffsetY: number;
   #activeAnimationName: string | null;
   #stats: CombatStats;
+  #respawnStats: CombatStats;
   #hitbox: Mesh;
   #hitboxHeight: number;
   #dead: boolean;
+  #deathDespawnTimer: number | null;
 
   constructor(root: TransformNode, animationGroups: AnimationGroup[]) {
     this.#root = root;
     this.#animationGroups = animationGroups;
+    this.#baseScaling = root.scaling.clone();
     this.#groundOffsetY = 0;
     this.#activeAnimationName = null;
     this.#stats = {
@@ -44,7 +55,9 @@ export class Enemy {
       attackDamage: 10,
       attackRange: 2.1,
     };
+    this.#respawnStats = { ...this.#stats };
     this.#dead = false;
+    this.#deathDespawnTimer = null;
 
     this.#hitboxHeight = Math.max(1.4, getHierarchyHeight(root));
     const hitboxWidth = Math.max(0.7, this.#hitboxHeight * 0.42);
@@ -109,8 +122,14 @@ export class Enemy {
       attackDamage: options.attackDamage ?? this.#stats.attackDamage,
       attackRange: options.attackRange ?? this.#stats.attackRange,
     };
+    this.#respawnStats = {
+      ...this.#stats,
+      health: maxHealth,
+      mana: maxMana,
+    };
 
     this.#dead = this.#stats.health <= 0;
+    this.#deathDespawnTimer = null;
     this.#root.setEnabled(!this.#dead);
     this.#hitbox.setEnabled(!this.#dead);
   }
@@ -151,6 +170,41 @@ export class Enemy {
     this.#stats.mana = Math.min(this.#stats.maxMana, this.#stats.mana + amount);
   }
 
+  restoreHealthToFull() {
+    if (this.#dead) {
+      return;
+    }
+
+    this.#stats.health = this.#stats.maxHealth;
+  }
+
+  restoreManaToFull() {
+    if (this.#dead) {
+      return;
+    }
+
+    this.#stats.mana = this.#stats.maxMana;
+  }
+
+  respawn(position: Vector3, options: RespawnOptions = {}) {
+    this.#stats = { ...this.#respawnStats };
+    this.#stats.health = Math.min(options.health ?? this.#stats.health, this.#stats.maxHealth);
+    this.#stats.mana = Math.min(options.mana ?? this.#stats.mana, this.#stats.maxMana);
+    this.#dead = false;
+    this.#deathDespawnTimer = null;
+    this.#activeAnimationName = null;
+    this.#resetScale();
+    this.#resetAnimations();
+    this.#root.position.copyFrom(position);
+    this.#root.setEnabled(true);
+    this.#hitbox.setEnabled(true);
+    this.updateHitbox();
+
+    if (!this.playIdle(true)) {
+      this.playWalk(true);
+    }
+  }
+
   distanceTo(other: Enemy): number {
     return Vector3.Distance(this.#root.position, other.root.position);
   }
@@ -185,9 +239,15 @@ export class Enemy {
     }
 
     for (const g of this.#animationGroups) {
+      if (g === selected) {
+        continue;
+      }
+
       g.stop();
+      g.reset();
     }
 
+    selected.reset();
     selected.start(loop);
     this.#activeAnimationName = selected.name;
     return true;
@@ -212,9 +272,19 @@ export class Enemy {
   playAttack(loop = false): boolean {
     return (
       this.playOnlyBySuffix("Attack", loop) ||
+      this.playOnlyBySuffix("Punch", loop) ||
+      this.playOnlyBySuffix("Weapon", loop) ||
       this.playOnlyBySuffix("Slash", loop) ||
       this.playOnlyBySuffix("Melee", loop) ||
       this.playWalk(false)
+    );
+  }
+
+  playDeath(loop = false): boolean {
+    return (
+      this.playOnlyBySuffix("Death", loop) ||
+      this.playOnlyBySuffix("Die", loop) ||
+      this.playOnlyBySuffix("Dead", loop)
     );
   }
 
@@ -226,7 +296,20 @@ export class Enemy {
     }
   }
 
-  update(_dt: number) {
+  update(dt: number) {
+    if (this.#dead) {
+      if (this.#deathDespawnTimer != null) {
+        this.#deathDespawnTimer = Math.max(0, this.#deathDespawnTimer - dt);
+
+        if (this.#deathDespawnTimer === 0) {
+          this.#deathDespawnTimer = null;
+          this.#root.setEnabled(false);
+        }
+      }
+
+      return;
+    }
+
     this.updateHitbox();
   }
 
@@ -245,12 +328,25 @@ export class Enemy {
   #die() {
     this.#dead = true;
     this.#activeAnimationName = null;
+    this.#resetScale();
+    this.#hitbox.setEnabled(false);
 
-    for (const g of this.#animationGroups) {
-      g.stop();
+    if (this.playDeath(false)) {
+      this.#deathDespawnTimer = DEFAULT_DEATH_DESPAWN_SECONDS;
+      return;
     }
 
     this.#root.setEnabled(false);
-    this.#hitbox.setEnabled(false);
+  }
+
+  #resetScale() {
+    this.#root.scaling.copyFrom(this.#baseScaling);
+  }
+
+  #resetAnimations() {
+    for (const g of this.#animationGroups) {
+      g.stop();
+      g.reset();
+    }
   }
 }

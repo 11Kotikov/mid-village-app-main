@@ -4,27 +4,34 @@ import type { StaticSound } from "@babylonjs/core";
 
 export class AmbientAudio {
   #audioEngine: AudioEngineV2 | null;
-  #forestSound: StaticSound | null;
+  #ambientSound: StaticSound | null;
+  #currentUrl: string | null;
   #unlockHandler: (() => void) | null;
 
   constructor() {
     this.#audioEngine = null;
-    this.#forestSound = null;
+    this.#ambientSound = null;
+    this.#currentUrl = null;
     this.#unlockHandler = null;
   }
 
   async init(ambienceUrl: string) {
+    if (this.#currentUrl === ambienceUrl && this.#ambientSound) {
+      return;
+    }
+
     this.dispose();
 
     try {
       const audioEngine = await CreateAudioEngineAsync({ volume: 0.5 });
-      const forestSound = await audioEngine.createSoundAsync("forest_sound", ambienceUrl, {
+      const ambientSound = await audioEngine.createSoundAsync("ambient_sound", ambienceUrl, {
         loop: true,
         autoplay: true,
       });
 
       this.#audioEngine = audioEngine;
-      this.#forestSound = forestSound;
+      this.#ambientSound = ambientSound;
+      this.#currentUrl = ambienceUrl;
 
       await this.#armUnlockAndPlay();
     } catch (error) {
@@ -36,9 +43,10 @@ export class AmbientAudio {
   dispose() {
     this.#removeUnlockHandlers();
 
-    this.#forestSound?.stop();
-    this.#forestSound?.dispose();
-    this.#forestSound = null;
+    this.#ambientSound?.stop();
+    this.#ambientSound?.dispose();
+    this.#ambientSound = null;
+    this.#currentUrl = null;
 
     this.#audioEngine?.dispose();
     this.#audioEngine = null;
@@ -47,14 +55,14 @@ export class AmbientAudio {
   async #armUnlockAndPlay() {
     const start = async () => {
       const audioEngine = this.#audioEngine;
-      const forestSound = this.#forestSound;
+      const ambientSound = this.#ambientSound;
 
-      if (!audioEngine || !forestSound) return;
+      if (!audioEngine || !ambientSound) return;
 
       try {
         await audioEngine.unlockAsync();
         await audioEngine.resumeAsync();
-        forestSound.play();
+        ambientSound.play();
       } catch (error) {
         console.warn("Звук не запустился", error);
       }
