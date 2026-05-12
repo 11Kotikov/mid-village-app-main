@@ -11,19 +11,30 @@ export function attachWASDControls(
   speed: number = 5
 ): () => void {
   const activeKeys = new Set<string>();
-  const normalizeKey = (key: string) => key.toLowerCase();
+  const movementKeys = new Map<string, string>([
+    ["KeyW", "w"],
+    ["KeyA", "a"],
+    ["KeyS", "s"],
+    ["KeyD", "d"],
+    ["ArrowUp", "w"],
+    ["ArrowLeft", "a"],
+    ["ArrowDown", "s"],
+    ["ArrowRight", "d"],
+  ]);
 
   const onKeyDown = (e: KeyboardEvent) => {
-    const key = normalizeKey(e.key);
-    if (["w", "a", "s", "d"].includes(key)) {
+    const key = movementKeys.get(e.code);
+    if (key) {
       activeKeys.add(key);
       e.preventDefault();
     }
   };
 
   const onKeyUp = (e: KeyboardEvent) => {
-    const key = normalizeKey(e.key);
-    activeKeys.delete(key);
+    const key = movementKeys.get(e.code);
+    if (key) {
+      activeKeys.delete(key);
+    }
   };
 
   window.addEventListener("keydown", onKeyDown);

@@ -68,7 +68,7 @@ export class PortalParticleSystem {
     const getRectHeight = () => this.rectHeight;
 
     // Генератор позиций (где рождаются частицы)
-    customEmitter.particlePositionGenerator = (index, particle, out) => {
+    customEmitter.particlePositionGenerator = (_index, _particle, out) => {
       const center = getCenter();
       if (getUseRect()) {
         // Прямоугольная область (дверной проём)
@@ -89,7 +89,7 @@ export class PortalParticleSystem {
     };
 
     // Генератор цели (куда летят частицы)
-    customEmitter.particleDestinationGenerator = (index, particle, out) => {
+    customEmitter.particleDestinationGenerator = (_index, _particle, out) => {
       const center = getCenter();
       out.x = center.x;
       out.y = center.y;
