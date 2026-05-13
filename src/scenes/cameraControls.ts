@@ -1,28 +1,39 @@
-// cameraControls.ts
 import { ArcRotateCamera, Scene, Vector3 } from "@babylonjs/core";
 
 /**
- * Подключает управление камерой WASD.
+ * Подключает стабильное игровое управление камерой:
+ * W/S - вперед/назад по направлению взгляда камеры,
+ * A/D - влево/вправо по экранной горизонтали.
  * @returns Функцию для отписки от событий (вызвать при уничтожении камеры/сцены)
  */
 export function attachWASDControls(
   camera: ArcRotateCamera,
   scene: Scene,
-  speed: number = 5
+  speed: number = 6.5
 ): () => void {
   const activeKeys = new Set<string>();
-  const movementKeys = new Map<string, string>([
-    ["KeyW", "w"],
-    ["KeyA", "a"],
-    ["KeyS", "s"],
-    ["KeyD", "d"],
-    ["ArrowUp", "w"],
-    ["ArrowLeft", "a"],
-    ["ArrowDown", "s"],
-    ["ArrowRight", "d"],
+  const movementKeys = new Map<string, "forward" | "left" | "back" | "right">([
+    ["KeyW", "forward"],
+    ["KeyA", "left"],
+    ["KeyS", "back"],
+    ["KeyD", "right"],
+    ["ArrowUp", "forward"],
+    ["ArrowLeft", "left"],
+    ["ArrowDown", "back"],
+    ["ArrowRight", "right"],
   ]);
 
+  camera.inputs.removeByType("ArcRotateCameraKeyboardMoveInput");
+  camera.inertia = 0.65;
+  camera.panningInertia = 0;
+  camera.lowerBetaLimit = 0.25;
+  camera.upperBetaLimit = Math.PI * 0.48;
+
   const onKeyDown = (e: KeyboardEvent) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) {
+      return;
+    }
+
     const key = movementKeys.get(e.code);
     if (key) {
       activeKeys.add(key);
@@ -53,22 +64,29 @@ export function attachWASDControls(
 
     if (activeKeys.size === 0) return;
 
-    const alpha = camera.alpha;
-    const forward = new Vector3(Math.sin(alpha), 0, Math.cos(alpha));
-    const right = new Vector3(Math.cos(alpha), 0, -Math.sin(alpha));
+    const forward = camera
+      .getTarget()
+      .subtract(camera.position)
+      .multiplyByFloats(1, 0, 1);
+
+    if (forward.lengthSquared() <= 0.0001) {
+      return;
+    }
+
+    forward.normalize();
+    const right = new Vector3(forward.z, 0, -forward.x);
 
     let move = Vector3.Zero();
-    if (activeKeys.has("w")) move.addInPlace(forward);
-    if (activeKeys.has("s")) move.subtractInPlace(forward);
-    if (activeKeys.has("d")) move.addInPlace(right);
-    if (activeKeys.has("a")) move.subtractInPlace(right);
+    if (activeKeys.has("forward")) move.addInPlace(forward);
+    if (activeKeys.has("back")) move.subtractInPlace(forward);
+    if (activeKeys.has("right")) move.addInPlace(right);
+    if (activeKeys.has("left")) move.subtractInPlace(right);
 
-    if (move.length() > 0) move.normalize();
+    if (move.lengthSquared() > 0) move.normalize();
     const delta = move.scale(speed * deltaSec);
     camera.target.addInPlace(delta);
   });
 
-  // Возвращаем функцию очистки
   return () => {
     window.removeEventListener("keydown", onKeyDown);
     window.removeEventListener("keyup", onKeyUp);

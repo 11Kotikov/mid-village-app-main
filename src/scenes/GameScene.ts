@@ -223,7 +223,7 @@ export class GameScene {
 
   async init() {
     const camera = this.#createCamera();
-    this.#disposeWASDControls = attachWASDControls(camera, this.#scene, 5);
+    this.#disposeWASDControls = attachWASDControls(camera, this.#scene, 6.5);
 
     this.#skybox = new Skybox(this.scene, SKYBOX_URLS.skybox, 1000);
 
