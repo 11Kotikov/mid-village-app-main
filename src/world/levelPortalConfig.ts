@@ -20,6 +20,8 @@ type LevelSetup = {
 const DEFAULT_ARRIVAL_OFFSET = new Vector3(0, 0, -4);
 const DEFAULT_RADIUS = 2.4;
 const DEFAULT_VISUAL_HEIGHT = 3;
+const VILLAGE_PORTAL_RADIUS = 0.75;
+const VILLAGE_PORTAL_VISUAL_HEIGHT = 1.35;
 
 function portal(
   id: string,
@@ -36,6 +38,20 @@ function portal(
     radius: DEFAULT_RADIUS,
     arrivalOffset,
     visualHeight: DEFAULT_VISUAL_HEIGHT,
+  };
+}
+
+function villagePortal(
+  id: string,
+  position: Vector3,
+  targetLevel: LevelKey,
+  targetPortalId: string,
+  arrivalOffset: Vector3
+): LevelPortalDefinition {
+  return {
+    ...portal(id, position, targetLevel, targetPortalId, arrivalOffset),
+    radius: VILLAGE_PORTAL_RADIUS,
+    visualHeight: VILLAGE_PORTAL_VISUAL_HEIGHT,
   };
 }
 
@@ -61,7 +77,7 @@ export const LEVEL_SETUP = {
     startPosition: new Vector3(0, 0, -6),
   },
   World_Village: {
-    scale: 50,
+    scale: 10,
     startPosition: new Vector3(0, 0, -6),
   },
 } satisfies Record<LevelKey, LevelSetup>;
@@ -87,10 +103,10 @@ export const LEVEL_PORTALS = {
     portal("waterfall_from_snow", new Vector3(0, 0, 6), "Snow_Terrain", "snow_to_waterfall", new Vector3(0, 0, -4)),
   ],
   World_Village: [
-    portal("village_from_woods", new Vector3(-8, 0, 0), "Walk_in_the_Woods", "woods_to_village", new Vector3(0, 0, -4)),
-    portal("village_to_cave", new Vector3(0, 0, 8), "Cave_Scene_Draft", "cave_from_village", new Vector3(0, 0, -4)),
-    portal("village_to_snow", new Vector3(8, 0, 0), "Snow_Terrain", "snow_from_village", new Vector3(4, 0, 0)),
-    portal("village_to_blocks", new Vector3(0, 0, -8), "Blocks_Trailer_Map", "blocks_from_village", new Vector3(0, 0, -4)),
-    portal("village_to_waterfall", new Vector3(8, 0, 8), "Warefall", "waterfall_from_village", new Vector3(4, 0, 0)),
+    villagePortal("village_from_woods", new Vector3(-2.2, 0, 0), "Walk_in_the_Woods", "woods_to_village", new Vector3(0, 0, -1)),
+    villagePortal("village_to_cave", new Vector3(0, 0, 2.2), "Cave_Scene_Draft", "cave_from_village", new Vector3(0, 0, -1)),
+    villagePortal("village_to_snow", new Vector3(2.2, 0, 0), "Snow_Terrain", "snow_from_village", new Vector3(1, 0, 0)),
+    villagePortal("village_to_blocks", new Vector3(0, 0, -2.2), "Blocks_Trailer_Map", "blocks_from_village", new Vector3(0, 0, -1)),
+    villagePortal("village_to_waterfall", new Vector3(2.2, 0, 2.2), "Warefall", "waterfall_from_village", new Vector3(1, 0, 0)),
   ],
 } satisfies Record<LevelKey, LevelPortalDefinition[]>;

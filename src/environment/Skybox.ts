@@ -13,7 +13,7 @@ export class Skybox {
   private mesh: Mesh | null = null;
   private material: StandardMaterial | null = null;
 
-  constructor(scene: Scene, texturePath: string, size: number = 500) {
+  constructor(scene: Scene, texturePath: string, size: number = 2000) {
     // Создаём куб
     this.mesh = MeshBuilder.CreateBox("skyBox", { size }, scene);
     this.mesh.infiniteDistance = true;

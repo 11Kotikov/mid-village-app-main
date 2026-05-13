@@ -107,17 +107,17 @@ const PLAYER_FIREBALL_TARGET_RANGE = 28;
 const PLAYER_FIREBALL_SPAWN_HEIGHT = 1.25;
 const PLAYER_FIREBALL_SPAWN_FORWARD_OFFSET = 1.1;
 const WITCH_WAVE_INTERVAL_SECONDS = 20;
-const WITCH_MANA_RESTORE_RADIUS = 3.2;
+const WITCH_MANA_RESTORE_RADIUS = 1.45;
 const WITCH_MANA_RESTORE_COOLDOWN_SECONDS = 2;
-const POTION_PICKUP_RADIUS = 2.2;
+const POTION_PICKUP_RADIUS = 0.85;
 const POTION_PICKUP_COOLDOWN_SECONDS = 2;
 
 const WORLD_VILLAGE_HUB = {
-  witch: new Vector3(2, 0, 2.5),
-  healthPotion: new Vector3(0.4, 0, 1),
-  manaPotion: new Vector3(3.6, 0, 1),
-  cauldron: new Vector3(2, 0, 5.2),
-  playerRespawn: new Vector3(2, 0, -1.5),
+  witch: new Vector3(-0.8, 0, 1.05),
+  healthPotion: new Vector3(-1.35, 0, 0.45),
+  manaPotion: new Vector3(-0.25, 0, 0.45),
+  cauldron: new Vector3(-0.8, 0, 1.8),
+  playerRespawn: new Vector3(-0.8, 0, -0.55),
 };
 
 const LEVEL_AMBIENT_AUDIO_URLS: Partial<Record<LevelKey, string>> = {
@@ -532,19 +532,21 @@ export class GameScene {
 
   #createPortals(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
     for (const definition of LEVEL_PORTALS[levelKey]) {
+      const radius = definition.radius ?? 2.4;
+      const visualHeight = definition.visualHeight ?? 3;
       const groundPosition = this.#getGroundedPosition(definition.position, groundMeshes);
-      const visualCenter = groundPosition.add(new Vector3(0, definition.visualHeight ?? 3, 0));
+      const visualCenter = groundPosition.add(new Vector3(0, visualHeight, 0));
       const effect = new PortalParticleSystem(this.scene, {
         center: visualCenter,
-        orbitRadius: 2,
+        orbitRadius: radius * 0.8,
         angularSpeed: 2,
         emitRate: 1000,
         maxLifeTime: 8,
         minSize: 0.05,
         maxSize: 0.1,
         useRectEmitter: true,
-        rectWidth: 4,
-        rectHeight: 3,
+        rectWidth: radius * 1.6,
+        rectHeight: visualHeight,
       });
 
       this.#activePortals.push({
