@@ -1,3 +1,5 @@
+import { GAME_SETTINGS } from "../config/gameSettings";
+
 export const LEVEL_URLS = {
   Blocks_Trailer_Map: "/models/environmental/Blocks_Trailer_Map.glb",
   Cave_Scene_Draft: "/models/environmental/Cave_Scene_Draft.glb",
@@ -9,11 +11,11 @@ export const LEVEL_URLS = {
 
 export type LevelKey = keyof typeof LEVEL_URLS;
 
-export const CURRENT_LEVEL_KEY: LevelKey = "Walk_in_the_Woods";
+export const CURRENT_LEVEL_KEY: LevelKey = GAME_SETTINGS.startLevel;
 
 export const ENEMY_URLS = {
-  goblin: "/models/enemies/Goblin.glb",
-  orc: "/models/enemies/Orc.glb",
+  goblin: GAME_SETTINGS.enemyModels.goblin.url,
+  orc: GAME_SETTINGS.enemyModels.orc.url,
 } as const;
 
 export const PLAYER_URLS = {

@@ -14,7 +14,7 @@ type PatrolRouteNode = {
 
 type PatrolEnemyOptions = {
   groundMeshes: AbstractMesh[];
-  route: PatrolRouteNode[];
+  route: readonly PatrolRouteNode[];
   player?: Enemy;
   respawnPosition?: Vector3;
   respawnDelaySeconds?: number;
@@ -44,7 +44,7 @@ type AgentEntry = {
   vehicle: YUKA.Vehicle;
   arriveBehavior: YUKA.ArriveBehavior;
   groundSet: Set<AbstractMesh>;
-  route: PatrolRouteNode[];
+  route: readonly PatrolRouteNode[];
   player: Enemy | null;
   mode: AgentMode;
   spawnPosition: Vector3;

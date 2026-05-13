@@ -1,39 +1,39 @@
 import type { Engine } from "@babylonjs/core/Engines/engine";
 import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Mesh, MeshBuilder } from "@babylonjs/core/Meshes";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import type { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Color4 } from "@babylonjs/core/Maths/math.color";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Ray } from "@babylonjs/core/Culling/ray";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 
 import {
   CURRENT_LEVEL_KEY,
   LEVEL_URLS,
-  ENEMY_URLS,
   PLAYER_URLS,
   NPC_URLS,
   POTION_URLS,
   PROP_URLS,
-  AUDIO_URLS,
   PARTICLES_URLS,
   SKYBOX_URLS,
   type LevelKey,
 } from "../assets/paths";
+import { GAME_SETTINGS } from "../config/gameSettings";
 import { loadGLBAsContainer } from "../assets/loaders";
 import { getHierarchyHeight, getHierarchyMinY } from "../assets/measure";
 import { Level } from "../world/Level";
 import { Skybox } from "../environment/Skybox";
 import {
-  ENEMY_PATROL_ROUTE,
-  GOBLIN_PATROL_START_NODE_INDICES,
-  ORC_PATROL_START_NODE_INDICES,
+  LEVEL_ENEMY_PATROL_CONFIG,
   getPatrolSpawnPoints,
 } from "../world/enemyPatrolRoute";
 import { LEVEL_WALKABLE_SUFFIXES } from "../world/levelWalkableConfig";
@@ -58,6 +58,7 @@ type ActivePortal = {
   definition: LevelPortalDefinition;
   position: Vector3;
   effect: PortalParticleSystem;
+  labelRoot: TransformNode | null;
 };
 
 type LoadedSceneObject = {
@@ -87,43 +88,31 @@ type FireballProjectile = {
 const PORTAL_COOLDOWN_SECONDS = 1;
 const PORTAL_RAYCAST_TOP_Y = 10000;
 const PORTAL_RAYCAST_LENGTH = 20000;
-const PLAYER_ATTACK_COOLDOWN_SECONDS = 0.55;
-const PLAYER_ATTACK_MANA_COST = 4;
-const PLAYER_MANA_REGEN_RATIO_PER_SECOND = 0.01 / 60;
-const PLAYER_ATTACK_DAMAGE = 24;
-const PLAYER_ATTACK_RANGE = 2.4;
-const PLAYER_RESPAWN_DELAY_SECONDS = 3.5;
-const PLAYER_RESPAWN_HEALTH_RATIO = 0.05;
-const PLAYER_RESPAWN_MANA_RATIO = 0.05;
-const PLAYER_RESPAWN_LEVEL: LevelKey = "World_Village";
-const PLAYER_FIREBALL_MANA_RATIO = 0.05;
-const PLAYER_FIREBALL_DAMAGE = 36;
-const PLAYER_FIREBALL_SPEED = 18;
-const PLAYER_FIREBALL_LIFETIME_SECONDS = 2.2;
-const PLAYER_FIREBALL_HIT_RADIUS = 1.25;
-const PLAYER_FIREBALL_CAST_COOLDOWN_SECONDS = 0.85;
-const PLAYER_FIREBALL_CAST_ANIMATION_SECONDS = 0.75;
-const PLAYER_FIREBALL_TARGET_RANGE = 28;
-const PLAYER_FIREBALL_SPAWN_HEIGHT = 1.25;
-const PLAYER_FIREBALL_SPAWN_FORWARD_OFFSET = 1.1;
-const WITCH_WAVE_INTERVAL_SECONDS = 20;
-const WITCH_MANA_RESTORE_RADIUS = 1.45;
-const WITCH_MANA_RESTORE_COOLDOWN_SECONDS = 2;
-const POTION_PICKUP_RADIUS = 0.85;
-const POTION_PICKUP_COOLDOWN_SECONDS = 2;
-
-const WORLD_VILLAGE_HUB = {
-  witch: new Vector3(-0.8, 0, 1.05),
-  healthPotion: new Vector3(-1.35, 0, 0.45),
-  manaPotion: new Vector3(-0.25, 0, 0.45),
-  cauldron: new Vector3(-0.8, 0, 1.8),
-  playerRespawn: new Vector3(-0.8, 0, -0.55),
-};
-
-const LEVEL_AMBIENT_AUDIO_URLS: Partial<Record<LevelKey, string>> = {
-  Walk_in_the_Woods: AUDIO_URLS.ambienceForest,
-  World_Village: AUDIO_URLS.ambienceVillage,
-};
+const PLAYER_ATTACK_COOLDOWN_SECONDS = GAME_SETTINGS.player.swordAttack.cooldownSeconds;
+const PLAYER_ATTACK_MANA_COST = GAME_SETTINGS.player.swordAttack.manaCost;
+const PLAYER_MANA_REGEN_RATIO_PER_SECOND = GAME_SETTINGS.player.manaRegenRatioPerSecond;
+const PLAYER_RESPAWN_DELAY_SECONDS = GAME_SETTINGS.player.respawn.delaySeconds;
+const PLAYER_RESPAWN_HEALTH_RATIO = GAME_SETTINGS.player.respawn.healthRatio;
+const PLAYER_RESPAWN_MANA_RATIO = GAME_SETTINGS.player.respawn.manaRatio;
+const PLAYER_RESPAWN_LEVEL: LevelKey = GAME_SETTINGS.player.respawn.level;
+const PLAYER_FIREBALL_MANA_RATIO = GAME_SETTINGS.player.fireball.manaRatioCost;
+const PLAYER_FIREBALL_DAMAGE = GAME_SETTINGS.player.fireball.damage;
+const PLAYER_FIREBALL_SPEED = GAME_SETTINGS.player.fireball.speed;
+const PLAYER_FIREBALL_LIFETIME_SECONDS = GAME_SETTINGS.player.fireball.lifetimeSeconds;
+const PLAYER_FIREBALL_HIT_RADIUS = GAME_SETTINGS.player.fireball.hitRadius;
+const PLAYER_FIREBALL_CAST_COOLDOWN_SECONDS = GAME_SETTINGS.player.fireball.castCooldownSeconds;
+const PLAYER_FIREBALL_CAST_ANIMATION_SECONDS = GAME_SETTINGS.player.fireball.castAnimationSeconds;
+const PLAYER_FIREBALL_TARGET_RANGE = GAME_SETTINGS.player.fireball.targetRange;
+const PLAYER_FIREBALL_SPAWN_HEIGHT = GAME_SETTINGS.player.fireball.spawnHeight;
+const PLAYER_FIREBALL_SPAWN_FORWARD_OFFSET = GAME_SETTINGS.player.fireball.spawnForwardOffset;
+const WITCH_WAVE_INTERVAL_SECONDS = GAME_SETTINGS.witch.waveIntervalSeconds;
+const WITCH_MANA_RESTORE_RADIUS = GAME_SETTINGS.witch.manaRestoreRadius;
+const WITCH_MANA_RESTORE_COOLDOWN_SECONDS = GAME_SETTINGS.witch.manaRestoreCooldownSeconds;
+const POTION_PICKUP_RADIUS = GAME_SETTINGS.pickups.potionRadius;
+const POTION_PICKUP_COOLDOWN_SECONDS = GAME_SETTINGS.pickups.potionCooldownSeconds;
+const PORTAL_LABEL_TEXTURE_WIDTH = GAME_SETTINGS.portalLabels.textureWidth;
+const PORTAL_LABEL_TEXTURE_HEIGHT = GAME_SETTINGS.portalLabels.textureHeight;
+const WORLD_VILLAGE_HUB = GAME_SETTINGS.worldVillageHub;
 
 type PlayerRespawnOptions = {
   position: Vector3;
@@ -136,8 +125,7 @@ export class GameScene {
   #canvas: HTMLCanvasElement;
   #spawner: EnemySpawner | null;
   #prefabs: EnemyPrefab[];
-  #goblinPrefab: EnemyPrefab | null;
-  #orcPrefab: EnemyPrefab | null;
+  #enemyPrefabs: Map<string, EnemyPrefab>;
   #playerPrefab: EnemyPrefab | null;
   #level: Level | null;
   #groundMeshes: AbstractMesh[];
@@ -178,8 +166,7 @@ export class GameScene {
     this.#groundMeshes = [];
     this.#spawner = null;
     this.#prefabs = [];
-    this.#goblinPrefab = null;
-    this.#orcPrefab = null;
+    this.#enemyPrefabs = new Map();
     this.#playerPrefab = null;
     this.#ai = null;
     this.#player = null;
@@ -223,25 +210,31 @@ export class GameScene {
 
   async init() {
     const camera = this.#createCamera();
-    this.#disposeWASDControls = attachWASDControls(camera, this.#scene, 6.5);
+    this.#disposeWASDControls = attachWASDControls(
+      camera,
+      this.#scene,
+      GAME_SETTINGS.player.cameraMoveSpeed
+    );
 
     this.#skybox = new Skybox(this.scene, SKYBOX_URLS.skybox, 1000);
 
-    const goblinContainer = await loadGLBAsContainer(this.#scene, ENEMY_URLS.goblin);
-    const orcContainer = await loadGLBAsContainer(this.#scene, ENEMY_URLS.orc);
+    for (const [modelKey, modelConfig] of Object.entries(GAME_SETTINGS.enemyModels)) {
+      const enemyContainer = await loadGLBAsContainer(this.#scene, modelConfig.url);
+      const enemyPrefab = new EnemyPrefab(this.#scene, enemyContainer, modelKey, {
+        targetHeight: modelConfig.targetHeight,
+      });
+
+      this.#enemyPrefabs.set(modelKey, enemyPrefab);
+      this.#prefabs.push(enemyPrefab);
+    }
+
     const playerContainer = await loadGLBAsContainer(this.#scene, PLAYER_URLS.hoodedAdventurer);
 
-    this.#goblinPrefab = new EnemyPrefab(this.#scene, goblinContainer, "goblin", {
-      targetHeight: 1.6,
-    });
-    this.#orcPrefab = new EnemyPrefab(this.#scene, orcContainer, "orc", {
-      targetHeight: 2.2,
-    });
     this.#playerPrefab = new EnemyPrefab(this.#scene, playerContainer, "player", {
-      targetHeight: 1.85,
+      targetHeight: GAME_SETTINGS.player.targetHeight,
     });
 
-    this.#prefabs.push(this.#goblinPrefab, this.#orcPrefab, this.#playerPrefab);
+    this.#prefabs.push(this.#playerPrefab);
 
     const audio = new AmbientAudio();
     this.#audio = audio;
@@ -259,7 +252,7 @@ export class GameScene {
       this.#scene
     );
     camera.attachControl(this.#canvas, true);
-    camera.wheelPrecision = 50;
+    camera.wheelPrecision = 10;
     return camera;
   }
 
@@ -312,7 +305,8 @@ export class GameScene {
   }
 
   async #setAmbientAudio(levelKey: LevelKey) {
-    const ambientUrl = LEVEL_AMBIENT_AUDIO_URLS[levelKey];
+    const levelSettings = GAME_SETTINGS.levels[levelKey];
+    const ambientUrl = "ambientAudioUrl" in levelSettings ? levelSettings.ambientAudioUrl : undefined;
 
     if (!ambientUrl) {
       this.#audio?.dispose();
@@ -363,14 +357,7 @@ export class GameScene {
         groundMeshes,
         logSizing: true,
       });
-      this.#player.configureStats({
-        maxHealth: 120,
-        health: 120,
-        maxMana: 80,
-        mana: 80,
-        attackDamage: PLAYER_ATTACK_DAMAGE,
-        attackRange: PLAYER_ATTACK_RANGE,
-      });
+      this.#player.configureStats(GAME_SETTINGS.player.stats);
     } else if (this.#player.isDead && playerRespawn) {
       const health = this.#player.stats.maxHealth * playerRespawn.healthRatio;
       const mana = this.#player.stats.maxMana * playerRespawn.manaRatio;
@@ -423,110 +410,55 @@ export class GameScene {
   }
 
   #spawnLevelActors(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
-    if (levelKey !== "Walk_in_the_Woods") {
+    if (this.#enemyPrefabs.size === 0) {
       return;
     }
 
-    if (!this.#goblinPrefab || !this.#orcPrefab) {
-      return;
-    }
-
+    const enemyConfig = LEVEL_ENEMY_PATROL_CONFIG[levelKey];
     const spawner = new EnemySpawner();
     this.#spawner = spawner;
-
-    const goblins = spawner.spawnMany(
-      this.#goblinPrefab,
-      getPatrolSpawnPoints(GOBLIN_PATROL_START_NODE_INDICES),
-      "goblin",
-      { groundMeshes }
-    );
-
-    const orcs = spawner.spawnMany(
-      this.#orcPrefab,
-      getPatrolSpawnPoints(ORC_PATROL_START_NODE_INDICES),
-      "orc",
-      { groundMeshes }
-    );
-
     const ai = new YukaWorld(this.#scene);
     this.#ai = ai;
 
-    for (const goblin of goblins) {
-      goblin.configureStats({
-        maxHealth: 42,
-        health: 42,
-        maxMana: 10,
-        mana: 10,
-        attackDamage: 8,
-        attackRange: 1.8,
-      });
-    }
+    for (const group of enemyConfig.groups) {
+      const modelKey = group.model as keyof typeof GAME_SETTINGS.enemyModels;
+      const modelSettings = GAME_SETTINGS.enemyModels[modelKey];
+      const prefab = this.#enemyPrefabs.get(group.model);
 
-    for (const orc of orcs) {
-      orc.configureStats({
-        maxHealth: 72,
-        health: 72,
-        maxMana: 15,
-        mana: 15,
-        attackDamage: 15,
-        attackRange: 2.1,
-      });
-    }
+      if (!modelSettings || !prefab) {
+        console.warn(`[enemy] model "${group.model}" is not configured or loaded`);
+        continue;
+      }
 
-    this.#combatEnemies.push(...goblins, ...orcs);
+      const enemies = spawner.spawnMany(
+        prefab,
+        getPatrolSpawnPoints(enemyConfig.route, group.startNodeIndices),
+        group.baseName ?? group.model,
+        { groundMeshes }
+      );
 
-    for (const [index, g] of goblins.entries()) {
-      ai.addPatrolEnemy(g, {
-        groundMeshes,
-        route: ENEMY_PATROL_ROUTE,
-        player: this.#player ?? undefined,
-        startNodeIndex: GOBLIN_PATROL_START_NODE_INDICES[index],
-        speed: 1.4,
-        chaseSpeed: 3.2,
-        maxForce: 12,
-        arriveDeceleration: 2,
-        nodeReachedDistance: 0.5,
-        aggroRange: 13,
-        loseRange: 20,
-        attackRange: g.stats.attackRange,
-        attackDamage: g.stats.attackDamage,
-        attackCooldown: 1.1,
-        // Параметры возрождения можно менять здесь:
-        // respawnPosition: new Vector3(x, y, z), // точка respawn для этого врага
-        // respawnDelaySeconds: 180,              // задержка respawn в секундах
-        separationRadius: 2.4,
-        separationWeight: 0.7,
-        raycastTopY: 10000,
-        raycastLength: 20000,
-        yawOffset: 0,
-      });
-    }
+      this.#combatEnemies.push(...enemies);
 
-    for (const [index, o] of orcs.entries()) {
-      ai.addPatrolEnemy(o, {
-        groundMeshes,
-        route: ENEMY_PATROL_ROUTE,
-        player: this.#player ?? undefined,
-        startNodeIndex: ORC_PATROL_START_NODE_INDICES[index],
-        speed: 1.0,
-        chaseSpeed: 2.7,
-        maxForce: 12,
-        arriveDeceleration: 2.5,
-        nodeReachedDistance: 0.55,
-        aggroRange: 15,
-        loseRange: 23,
-        attackRange: o.stats.attackRange,
-        attackDamage: o.stats.attackDamage,
-        attackCooldown: 1.45,
-        // Параметры возрождения можно менять здесь:
-        // respawnPosition: new Vector3(x, y, z), // точка respawn для этого врага
-        // respawnDelaySeconds: 180,              // задержка respawn в секундах
-        separationRadius: 2.8,
-        separationWeight: 0.85,
-        raycastTopY: 10000,
-        raycastLength: 20000,
-        yawOffset: 0,
-      });
+      for (const [index, enemy] of enemies.entries()) {
+        const startNodeIndex = group.startNodeIndices[index] ?? 0;
+
+        enemy.configureStats(modelSettings.stats);
+
+        ai.addPatrolEnemy(enemy, {
+          ...modelSettings.ai,
+          groundMeshes,
+          route: enemyConfig.route,
+          player: this.#player ?? undefined,
+          startNodeIndex,
+          attackRange: enemy.stats.attackRange,
+          attackDamage: enemy.stats.attackDamage,
+          // Параметры возрождения можно менять в src/config/gameSettings.ts:
+          // startNodeIndices задает точку spawn/respawn на маршруте для группы врагов.
+          // Для индивидуального respawn можно добавить respawnPosition/respawnDelaySeconds здесь.
+          raycastTopY: 10000,
+          raycastLength: 20000,
+        });
+      }
     }
   }
 
@@ -553,8 +485,69 @@ export class GameScene {
         definition,
         position: groundPosition,
         effect,
+        labelRoot: this.#createPortalLabel(definition, visualCenter, visualHeight),
       });
     }
+  }
+
+  #createPortalLabel(
+    definition: LevelPortalDefinition,
+    visualCenter: Vector3,
+    visualHeight: number
+  ): TransformNode | null {
+    if (!definition.label) {
+      return null;
+    }
+
+    const labelRoot = new TransformNode(`portal_label_${definition.id}`, this.#scene);
+    labelRoot.position.copyFrom(visualCenter.add(new Vector3(0, visualHeight * 0.55 + 0.35, 0)));
+
+    const texture = new DynamicTexture(
+      `${definition.id}_label_texture`,
+      { width: PORTAL_LABEL_TEXTURE_WIDTH, height: PORTAL_LABEL_TEXTURE_HEIGHT },
+      this.#scene,
+      false
+    );
+    texture.hasAlpha = true;
+
+    const context = texture.getContext() as CanvasRenderingContext2D;
+    context.clearRect(0, 0, PORTAL_LABEL_TEXTURE_WIDTH, PORTAL_LABEL_TEXTURE_HEIGHT);
+    context.fillStyle = "rgba(18, 13, 8, 0.82)";
+    context.fillRect(20, 20, PORTAL_LABEL_TEXTURE_WIDTH - 40, PORTAL_LABEL_TEXTURE_HEIGHT - 40);
+    context.strokeStyle = "rgba(255, 217, 140, 0.95)";
+    context.lineWidth = 10;
+    context.strokeRect(20, 20, PORTAL_LABEL_TEXTURE_WIDTH - 40, PORTAL_LABEL_TEXTURE_HEIGHT - 40);
+    context.font = "700 58px Arial";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillStyle = "#ffe6aa";
+    context.fillText(
+      definition.label,
+      PORTAL_LABEL_TEXTURE_WIDTH / 2,
+      PORTAL_LABEL_TEXTURE_HEIGHT / 2 + 4
+    );
+    texture.update();
+
+    const material = new StandardMaterial(`${definition.id}_label_material`, this.#scene);
+    material.diffuseTexture = texture;
+    material.emissiveColor = new Color3(1, 0.78, 0.38);
+    material.backFaceCulling = false;
+    material.useAlphaFromDiffuseTexture = true;
+
+    const plane = MeshBuilder.CreatePlane(
+      `${definition.id}_label_plane`,
+      {
+        width: GAME_SETTINGS.portalLabels.planeWidth,
+        height: GAME_SETTINGS.portalLabels.planeHeight,
+      },
+      this.#scene
+    );
+    plane.parent = labelRoot;
+    plane.material = material;
+    plane.billboardMode = Mesh.BILLBOARDMODE_Y;
+    plane.isPickable = false;
+
+    return labelRoot;
   }
 
   async #createLevelSceneObjects(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
@@ -566,7 +559,7 @@ export class GameScene {
       name: "witch_npc",
       position: WORLD_VILLAGE_HUB.witch,
       groundMeshes,
-      targetHeight: 1.8,
+      targetHeight: GAME_SETTINGS.witch.targetHeight,
       rotationY: Math.PI,
     });
     const witch: WitchNpc = {
@@ -584,13 +577,13 @@ export class GameScene {
       name: "health_potion_pickup",
       position: WORLD_VILLAGE_HUB.healthPotion,
       groundMeshes,
-      targetHeight: 0.7,
+      targetHeight: GAME_SETTINGS.pickups.potionTargetHeight,
     });
     const manaPotion = await this.#loadSceneObject(POTION_URLS.mana, {
       name: "mana_potion_pickup",
       position: WORLD_VILLAGE_HUB.manaPotion,
       groundMeshes,
-      targetHeight: 0.7,
+      targetHeight: GAME_SETTINGS.pickups.potionTargetHeight,
     });
     await this.#loadSceneObject(PROP_URLS.magicCauldron, {
       name: "magic_cauldron",
@@ -1206,6 +1199,7 @@ export class GameScene {
 
     for (const portal of this.#activePortals) {
       portal.effect.dispose();
+      portal.labelRoot?.dispose(false, true);
     }
     this.#activePortals = [];
 
@@ -1253,8 +1247,7 @@ export class GameScene {
       p.dispose();
     }
     this.#prefabs = [];
-    this.#goblinPrefab = null;
-    this.#orcPrefab = null;
+    this.#enemyPrefabs.clear();
     this.#playerPrefab = null;
 
     this.#scene.dispose();
