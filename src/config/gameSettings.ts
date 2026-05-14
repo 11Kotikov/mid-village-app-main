@@ -31,6 +31,19 @@ const DEFAULT_ENEMY_GROUPS = [
   { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
 ];
 
+const BLOCKS_TRAILER_ENEMY_ROUTE = [
+  { name: "skeleton_headless_spawn_left", position: new Vector3(-10, 0, 8), pauseSeconds: 2 },
+  { name: "skeleton_headless_patrol_left", position: new Vector3(-5, 0, 13) },
+  { name: "skeleton_headless_spawn_center", position: new Vector3(0, 0, 9), pauseSeconds: 2 },
+  { name: "skeleton_headless_patrol_right", position: new Vector3(5, 0, 13) },
+  { name: "skeleton_headless_spawn_right", position: new Vector3(10, 0, 8), pauseSeconds: 2 },
+  { name: "skeleton_helmed_spawn_left", position: new Vector3(-12, 0, -2), pauseSeconds: 2.5 },
+  { name: "skeleton_helmed_patrol_center", position: new Vector3(0, 0, 2) },
+  { name: "skeleton_helmed_spawn_right", position: new Vector3(12, 0, -2), pauseSeconds: 2.5 },
+  { name: "skeleton_boss_spawn_left", position: new Vector3(-9, 0, -13), pauseSeconds: 4 },
+  { name: "skeleton_boss_spawn_right", position: new Vector3(9, 0, -13), pauseSeconds: 4 },
+];
+
 const VILLAGE_OUTSKIRTS_ENEMY_ROUTE = [
   { name: "village_far_left_spawn", position: new Vector3(-14, 0, 12), pauseSeconds: 2 },
   { name: "village_far_left_turn", position: new Vector3(-10, 0, 18) },
@@ -43,14 +56,25 @@ const VILLAGE_OUTSKIRTS_ENEMY_ROUTE = [
 ];
 
 const SNOW_TERRAIN_ENEMY_ROUTE = [
-  { name: "snowman_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
-  { name: "snowman_patrol_left", position: new Vector3(-6, 0, 14) },
-  { name: "snowman_spawn_center", position: new Vector3(0, 0, 13), pauseSeconds: 2 },
-  { name: "snowman_patrol_right", position: new Vector3(6, 0, 14) },
-  { name: "snowman_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
+  { name: "white_man_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
+  { name: "white_man_patrol_left", position: new Vector3(-6, 0, 14) },
+  { name: "white_man_spawn_center", position: new Vector3(0, 0, 13), pauseSeconds: 2 },
+  { name: "white_man_patrol_right", position: new Vector3(6, 0, 14) },
+  { name: "white_man_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
   { name: "yeti_spawn_left", position: new Vector3(-14, 0, -6), pauseSeconds: 2.5 },
   { name: "cold_planet_boss_spawn", position: new Vector3(0, 0, -16), pauseSeconds: 4 },
   { name: "yeti_spawn_right", position: new Vector3(14, 0, -6), pauseSeconds: 2.5 },
+];
+
+const WAREFALL_ENEMY_ROUTE = [
+  { name: "fish_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
+  { name: "fish_patrol_left", position: new Vector3(-6, 0, 13) },
+  { name: "fish_spawn_center", position: new Vector3(0, 0, 10), pauseSeconds: 2 },
+  { name: "fish_patrol_right", position: new Vector3(6, 0, 13) },
+  { name: "fish_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
+  { name: "frog_spawn_left", position: new Vector3(-11, 0, -4), pauseSeconds: 2.5 },
+  { name: "mako_boss_spawn", position: new Vector3(0, 0, -14), pauseSeconds: 4 },
+  { name: "frog_spawn_right", position: new Vector3(11, 0, -4), pauseSeconds: 2.5 },
 ];
 
 export const GAME_SETTINGS = {
@@ -77,6 +101,16 @@ export const GAME_SETTINGS = {
       delaySeconds: 3.5,
       healthRatio: 0.05,
       manaRatio: 0.05,
+      // Точки возрождения игрока после смерти. Меняй нужную карту здесь,
+      // а active-карту выбирай через поле level выше.
+      points: {
+        Blocks_Trailer_Map: new Vector3(0, 0, -6),
+        Cave_Scene_Draft: new Vector3(0, 0, -6),
+        Snow_Terrain: new Vector3(0, 0, -6),
+        Walk_in_the_Woods: new Vector3(-9.45, 0, 26),
+        Warefall: new Vector3(0, 0, -6),
+        World_Village: new Vector3(0, 0, -2.25),
+      } satisfies Record<LevelKey, Vector3>,
     },
     fireball: {
       manaRatioCost: 0.05,
@@ -137,11 +171,12 @@ export const GAME_SETTINGS = {
     Walk_in_the_Woods: {
       scale: 50,
       startPosition: new Vector3(-9.45, 0, 26),
-      ambientAudioUrl: "/audio/forest.mp3",
+      ambientAudioUrl: "/audio/nightForest.mp3",
     },
     Warefall: {
       scale: 60,
       startPosition: new Vector3(0, 0, -6),
+      ambientAudioUrl: "/audio/forest.mp3",
     },
     World_Village: {
       scale: 10,
@@ -321,8 +356,77 @@ export const GAME_SETTINGS = {
         separationWeight: 0.85,
       },
     },
-    snowman: {
-      url: "/models/enemies/Snowman.glb",
+    skeletonHeadless: {
+      url: "/models/enemies/Skeleton_headless.glb",
+      targetHeight: 1.75,
+      stats: {
+        maxHealth: 48,
+        health: 48,
+        maxMana: 8,
+        mana: 8,
+        attackDamage: 9,
+        attackRange: 1.85,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 1.25,
+        chaseSpeed: 3,
+        aggroRange: 13,
+        loseRange: 20,
+        attackCooldown: 1.15,
+      },
+    },
+    skeletonHelmed: {
+      url: "/models/enemies/Skeleton_helmed.glb",
+      targetHeight: 1.9,
+      stats: {
+        maxHealth: 76,
+        health: 76,
+        maxMana: 12,
+        mana: 12,
+        attackDamage: 15,
+        attackRange: 2.05,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 1,
+        chaseSpeed: 2.65,
+        arriveDeceleration: 2.4,
+        nodeReachedDistance: 0.55,
+        aggroRange: 15,
+        loseRange: 23,
+        attackCooldown: 1.4,
+        separationRadius: 2.7,
+        separationWeight: 0.85,
+      },
+    },
+    skeletonHelmedBoss: {
+      url: "/models/enemies/Skeleton_helmed.glb",
+      targetHeight: 2.35,
+      stats: {
+        maxHealth: 280,
+        health: 280,
+        maxMana: 35,
+        mana: 35,
+        attackDamage: 24,
+        attackRange: 2.6,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 0.85,
+        chaseSpeed: 2.25,
+        arriveDeceleration: 2.8,
+        nodeReachedDistance: 0.65,
+        aggroRange: 20,
+        loseRange: 30,
+        attackCooldown: 1.9,
+        separationRadius: 4,
+        separationWeight: 1,
+        respawnDelaySeconds: 420,
+      },
+    },
+    whiteMan: {
+      url: "/models/enemies/White_man.glb",
       targetHeight: 1.65,
       stats: {
         maxHealth: 48,
@@ -339,6 +443,72 @@ export const GAME_SETTINGS = {
         aggroRange: 12,
         loseRange: 19,
         attackCooldown: 1.25,
+      },
+    },
+    fish: {
+      url: "/models/enemies/Fish.glb",
+      targetHeight: 1.55,
+      stats: {
+        maxHealth: 52,
+        health: 52,
+        maxMana: 8,
+        mana: 8,
+        attackDamage: 10,
+        attackRange: 1.85,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 1.25,
+        chaseSpeed: 2.95,
+        aggroRange: 13,
+        loseRange: 20,
+        attackCooldown: 1.15,
+      },
+    },
+    frog: {
+      url: "/models/enemies/Frog.glb",
+      targetHeight: 1.35,
+      stats: {
+        maxHealth: 44,
+        health: 44,
+        maxMana: 10,
+        mana: 10,
+        attackDamage: 8,
+        attackRange: 1.7,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 1.35,
+        chaseSpeed: 3.15,
+        aggroRange: 12,
+        loseRange: 19,
+        attackCooldown: 1.05,
+        separationRadius: 2.1,
+      },
+    },
+    makoBoss: {
+      url: "/models/enemies/Mako.glb",
+      targetHeight: 2.45,
+      stats: {
+        maxHealth: 320,
+        health: 320,
+        maxMana: 45,
+        mana: 45,
+        attackDamage: 24,
+        attackRange: 2.7,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 0.85,
+        chaseSpeed: 2.25,
+        arriveDeceleration: 2.8,
+        nodeReachedDistance: 0.65,
+        aggroRange: 20,
+        loseRange: 30,
+        attackCooldown: 1.9,
+        separationRadius: 4,
+        separationWeight: 1,
+        respawnDelaySeconds: 420,
       },
     },
     yeti: {
@@ -408,14 +578,20 @@ export const GAME_SETTINGS = {
 
   enemyRoutes: {
     default: DEFAULT_ENEMY_ROUTE,
+    blocksTrailer: BLOCKS_TRAILER_ENEMY_ROUTE,
     villageOutskirts: VILLAGE_OUTSKIRTS_ENEMY_ROUTE,
     snowTerrain: SNOW_TERRAIN_ENEMY_ROUTE,
+    warefall: WAREFALL_ENEMY_ROUTE,
   },
 
   enemiesByLevel: {
     Blocks_Trailer_Map: {
-      route: "default",
-      groups: DEFAULT_ENEMY_GROUPS,
+      route: "blocksTrailer",
+      groups: [
+        { model: "skeletonHeadless", baseName: "skeleton_headless", startNodeIndices: [0, 2, 4] },
+        { model: "skeletonHelmed", baseName: "skeleton_helmed", startNodeIndices: [5, 7] },
+        { model: "skeletonHelmedBoss", baseName: "skeleton_boss", startNodeIndices: [8, 9] },
+      ],
     },
     Cave_Scene_Draft: {
       route: "default",
@@ -424,7 +600,7 @@ export const GAME_SETTINGS = {
     Snow_Terrain: {
       route: "snowTerrain",
       groups: [
-        { model: "snowman", baseName: "snowman", startNodeIndices: [0, 2, 4] },
+        { model: "whiteMan", baseName: "white_man", startNodeIndices: [0, 2, 4] },
         { model: "yeti", baseName: "yeti", startNodeIndices: [5, 7] },
         { model: "coldPlanet", baseName: "cold_planet_boss", startNodeIndices: [6], boss: true },
       ],
@@ -434,8 +610,12 @@ export const GAME_SETTINGS = {
       groups: DEFAULT_ENEMY_GROUPS,
     },
     Warefall: {
-      route: "default",
-      groups: DEFAULT_ENEMY_GROUPS,
+      route: "warefall",
+      groups: [
+        { model: "fish", baseName: "fish", startNodeIndices: [0, 2, 4] },
+        { model: "frog", baseName: "frog", startNodeIndices: [5, 7] },
+        { model: "makoBoss", baseName: "mako_boss", startNodeIndices: [6] },
+      ],
     },
     World_Village: {
       route: "villageOutskirts",

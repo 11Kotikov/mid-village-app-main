@@ -1171,17 +1171,17 @@ export class GameScene {
       return;
     }
 
-    void this.#respawnPlayerNearWitchPortal();
+    void this.#respawnPlayer();
   }
 
-  async #respawnPlayerNearWitchPortal() {
+  async #respawnPlayer() {
     if (!this.#player || this.#isRespawningPlayer) {
       return;
     }
 
     this.#isRespawningPlayer = true;
     const playerRespawn = {
-      position: WORLD_VILLAGE_HUB.playerRespawn,
+      position: GAME_SETTINGS.player.respawn.points[PLAYER_RESPAWN_LEVEL].clone(),
       healthRatio: PLAYER_RESPAWN_HEALTH_RATIO,
       manaRatio: PLAYER_RESPAWN_MANA_RATIO,
     };
@@ -1198,7 +1198,7 @@ export class GameScene {
       }
 
       this.#portalCooldown = PORTAL_COOLDOWN_SECONDS;
-      this.#hudStatusText("Respawned near Witch");
+      this.#hudStatusText(`Respawned on ${PLAYER_RESPAWN_LEVEL}`);
       this.#updateHud();
     } finally {
       this.#playerRespawnTimeLeft = null;
