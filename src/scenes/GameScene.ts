@@ -78,6 +78,14 @@ type PotionPickup = LoadedSceneObject & {
   cooldownLeft: number;
 };
 
+type PatrolNpc = LoadedSceneObject & {
+  route: Vector3[];
+  currentRouteIndex: number;
+  speed: number;
+  groundOffsetY: number;
+  walkAnimation: AnimationGroup | null;
+};
+
 type FireballProjectile = {
   position: Vector3;
   velocity: Vector3;
@@ -148,10 +156,12 @@ export class GameScene {
   #disposeFireballHotkey: (() => void) | null;
   #activePortals: ActivePortal[];
   #activeSceneObjects: LoadedSceneObject[];
+  #patrolNpcs: PatrolNpc[];
   #witch: WitchNpc | null;
   #potionPickups: PotionPickup[];
   #fireballs: FireballProjectile[];
   #bossProjectiles: BossProjectile[];
+  #snowfall: ParticleSystem | null;
   #snowBoss: Enemy | null;
   #snowBossShootCooldown: number;
   #combatEnemies: Enemy[];
@@ -190,10 +200,12 @@ export class GameScene {
     this.#disposeFireballHotkey = null;
     this.#activePortals = [];
     this.#activeSceneObjects = [];
+    this.#patrolNpcs = [];
     this.#witch = null;
     this.#potionPickups = [];
     this.#fireballs = [];
     this.#bossProjectiles = [];
+    this.#snowfall = null;
     this.#snowBoss = null;
     this.#snowBossShootCooldown = GAME_SETTINGS.snowBoss.shootIntervalSeconds;
     this.#combatEnemies = [];
@@ -318,6 +330,7 @@ export class GameScene {
     this.#spawnLevelActors(levelKey, this.#groundMeshes);
     this.#createPortals(levelKey, this.#groundMeshes);
     await this.#createLevelSceneObjects(levelKey, this.#groundMeshes);
+    this.#createLevelWeather(levelKey);
     this.#centerCameraOnPlayer();
     this.#currentLevelKey = levelKey;
     await this.#setAmbientAudio(levelKey);
@@ -578,6 +591,31 @@ export class GameScene {
   }
 
   async #createLevelSceneObjects(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
+    if (levelKey === "Blocks_Trailer_Map") {
+      const cathedral = GAME_SETTINGS.blocksTrailerProps.cathedral;
+      await this.#loadSceneObject(PROP_URLS.cathedral, {
+        name: "blocks_trailer_cathedral",
+        position: cathedral.position,
+        groundMeshes,
+        targetHeight: cathedral.targetHeight,
+        rotationY: cathedral.rotationY,
+      });
+      await this.#createBlocksTrailerCastleNpcs(groundMeshes);
+      return;
+    }
+
+    if (levelKey === "Cave_Scene_Draft") {
+      const stable = GAME_SETTINGS.caveSceneDraftProps.fantasyStable;
+      await this.#loadSceneObject(PROP_URLS.fantasyStable, {
+        name: "cave_fantasy_stable",
+        position: stable.position,
+        groundMeshes,
+        targetHeight: stable.targetHeight,
+        rotationY: stable.rotationY,
+      });
+      return;
+    }
+
     if (levelKey !== "World_Village") {
       return;
     }
@@ -636,6 +674,93 @@ export class GameScene {
     );
   }
 
+  async #createBlocksTrailerCastleNpcs(groundMeshes: AbstractMesh[]) {
+    const npcs = GAME_SETTINGS.blocksTrailerProps.castleNpcs;
+
+    const king = await this.#loadSceneObject(NPC_URLS.king, {
+      name: "blocks_trailer_king",
+      position: npcs.king.position,
+      groundMeshes,
+      targetHeight: npcs.king.targetHeight,
+      rotationY: npcs.king.rotationY,
+    });
+    this.#playSceneObjectAnimation(
+      king,
+      this.#findAnimationBySuffix(king.container.animationGroups, ["Idle_Neutral", "Idle"]),
+      true
+    );
+
+    const knight = await this.#loadSceneObject(NPC_URLS.knight, {
+      name: "blocks_trailer_knight",
+      position: npcs.knight.position,
+      groundMeshes,
+      targetHeight: npcs.knight.targetHeight,
+      rotationY: npcs.knight.rotationY,
+    });
+    this.#playSceneObjectAnimation(
+      knight,
+      this.#findAnimationBySuffix(knight.container.animationGroups, ["Idle", "ArmatureAction"]),
+      true
+    );
+
+    for (const [index, patrol] of npcs.knight2Patrols.entries()) {
+      const knight2 = await this.#loadSceneObject(NPC_URLS.knight2, {
+        name: `blocks_trailer_knight2_patrol_${index + 1}`,
+        position: patrol.startPosition,
+        groundMeshes,
+        targetHeight: npcs.knight2TargetHeight,
+      });
+      const walkAnimation = this.#findAnimationBySuffix(knight2.container.animationGroups, [
+        "Walk_Formal_Loop",
+        "Walk",
+        "Run",
+      ]);
+      this.#playSceneObjectAnimation(knight2, walkAnimation, true);
+
+      const grounded = this.#getGroundedPosition(knight2.root.position, groundMeshes);
+      this.#patrolNpcs.push({
+        ...knight2,
+        route: patrol.route.map((point) => this.#getGroundedPosition(point, groundMeshes)),
+        currentRouteIndex: 0,
+        speed: npcs.knight2Speed,
+        groundOffsetY: knight2.root.position.y - grounded.y,
+        walkAnimation,
+      });
+    }
+  }
+
+  #createLevelWeather(levelKey: LevelKey) {
+    if (levelKey !== "Snow_Terrain") {
+      return;
+    }
+
+    const weather = GAME_SETTINGS.snowTerrainWeather;
+    const snowfall = new ParticleSystem("snow_terrain_snowfall", weather.capacity, this.#scene);
+
+    snowfall.particleTexture = new Texture(PARTICLES_URLS.snow, this.#scene);
+    snowfall.emitter = Vector3.Zero();
+    snowfall.minEmitBox = weather.minEmitBox;
+    snowfall.maxEmitBox = weather.maxEmitBox;
+    snowfall.color1 = new Color4(1, 1, 1, 0.95);
+    snowfall.color2 = new Color4(0.82, 0.9, 1, 0.75);
+    snowfall.colorDead = new Color4(1, 1, 1, 0);
+    snowfall.minSize = weather.minSize;
+    snowfall.maxSize = weather.maxSize;
+    snowfall.minLifeTime = weather.minLifeTime;
+    snowfall.maxLifeTime = weather.maxLifeTime;
+    snowfall.emitRate = weather.emitRate;
+    snowfall.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+    snowfall.gravity = weather.gravity;
+    snowfall.direction1 = weather.direction1;
+    snowfall.direction2 = weather.direction2;
+    snowfall.minEmitPower = weather.minEmitPower;
+    snowfall.maxEmitPower = weather.maxEmitPower;
+    snowfall.updateSpeed = weather.updateSpeed;
+    snowfall.start();
+
+    this.#snowfall = snowfall;
+  }
+
   async #loadSceneObject(
     url: string,
     options: {
@@ -690,6 +815,28 @@ export class GameScene {
     }
 
     return null;
+  }
+
+  #playSceneObjectAnimation(
+    object: LoadedSceneObject,
+    animation: AnimationGroup | null,
+    loop: boolean
+  ) {
+    if (!animation) {
+      return;
+    }
+
+    for (const group of object.container.animationGroups) {
+      if (group === animation) {
+        continue;
+      }
+
+      group.stop();
+      group.reset();
+    }
+
+    animation.reset();
+    animation.start(loop);
   }
 
   #stopWitchAnimations() {
@@ -761,6 +908,7 @@ export class GameScene {
     }
 
     this.#updateWitch(dt);
+    this.#updatePatrolNpcs(dt);
     this.#updatePotionPickups(dt);
     this.#updateFireballs(dt);
     this.#updateBossProjectiles(dt);
@@ -778,6 +926,43 @@ export class GameScene {
     this.#ai?.update(dt);
     this.#spawner?.update(dt);
     this.#checkPortalTransitions();
+  }
+
+  #updatePatrolNpcs(dt: number) {
+    if (dt <= 0) {
+      return;
+    }
+
+    for (const npc of this.#patrolNpcs) {
+      if (npc.route.length === 0) {
+        continue;
+      }
+
+      const target = npc.route[npc.currentRouteIndex];
+      const toTarget = target.subtract(npc.root.position);
+      toTarget.y = 0;
+
+      const distance = toTarget.length();
+      if (distance <= Math.max(0.05, npc.speed * dt)) {
+        npc.root.position.x = target.x;
+        npc.root.position.z = target.z;
+        npc.currentRouteIndex = (npc.currentRouteIndex + 1) % npc.route.length;
+        continue;
+      }
+
+      const direction = toTarget.normalize();
+      npc.root.position.addInPlace(direction.scale(npc.speed * dt));
+      npc.root.rotation.y = Math.atan2(direction.x, direction.z);
+
+      const ground = this.#pickGroundAt(npc.root.position, this.#groundMeshes);
+      if (ground) {
+        npc.root.position.y = ground.y + npc.groundOffsetY;
+      }
+
+      if (npc.walkAnimation && !npc.walkAnimation.isPlaying) {
+        this.#playSceneObjectAnimation(npc, npc.walkAnimation, true);
+      }
+    }
   }
 
   #updateWitch(dt: number) {
@@ -1334,6 +1519,8 @@ export class GameScene {
 
     this.#disposeFireballs();
     this.#disposeBossProjectiles();
+    this.#snowfall?.dispose();
+    this.#snowfall = null;
     this.#fireballCooldown = 0;
     this.#playerCastAnimationTimeLeft = 0;
     this.#snowBoss = null;
@@ -1356,6 +1543,7 @@ export class GameScene {
       object.root.dispose();
     }
     this.#activeSceneObjects = [];
+    this.#patrolNpcs = [];
     this.#witch = null;
     this.#potionPickups = [];
     this.#witchManaRestoreCooldown = 0;

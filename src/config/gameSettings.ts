@@ -154,6 +154,56 @@ export const GAME_SETTINGS = {
     playerRespawn: new Vector3(0, 0, -2.25),
   },
 
+  caveSceneDraftProps: {
+    fantasyStable: {
+      position: new Vector3(8, 0, -10),
+      targetHeight: 4.5,
+      rotationY: Math.PI / 2,
+    },
+  },
+
+  blocksTrailerProps: {
+    cathedral: {
+      position: new Vector3(0, 0, -20),
+      targetHeight: 10,
+      rotationY: Math.PI,
+    },
+    castleNpcs: {
+      king: {
+        position: new Vector3(0, 0, -13.5),
+        targetHeight: 1.9,
+        rotationY: Math.PI,
+      },
+      knight: {
+        position: new Vector3(3.2, 0, -13.25),
+        targetHeight: 1.85,
+        rotationY: Math.PI,
+      },
+      knight2TargetHeight: 1.85,
+      knight2Speed: 2,
+      knight2Patrols: [
+        {
+          startPosition: new Vector3(-4, 0, -13.5),
+          route: [
+            new Vector3(-6.5, 0, -15.5),
+            new Vector3(-6.5, 0, -25),
+            new Vector3(-1.5, 0, -27.5),
+            new Vector3(-1.5, 0, -15.5),
+          ],
+        },
+        {
+          startPosition: new Vector3(4, 0, -13.5),
+          route: [
+            new Vector3(6.5, 0, -15.5),
+            new Vector3(6.5, 0, -25),
+            new Vector3(1.5, 0, -27.5),
+            new Vector3(1.5, 0, -15.5),
+          ],
+        },
+      ],
+    },
+  },
+
   levels: {
     Blocks_Trailer_Map: {
       scale: 33,
@@ -574,6 +624,23 @@ export const GAME_SETTINGS = {
     projectileSpawnHeight: 1.8,
     projectileForwardOffset: 1.5,
     targetRange: 34,
+  },
+
+  snowTerrainWeather: {
+    emitRate: 850,
+    capacity: 4500,
+    minEmitBox: new Vector3(-45, 26, -45),
+    maxEmitBox: new Vector3(45, 32, 45),
+    gravity: new Vector3(0.25, -3.4, 0.15),
+    direction1: new Vector3(-0.45, -1, -0.25),
+    direction2: new Vector3(0.45, -1, 0.25),
+    minLifeTime: 5,
+    maxLifeTime: 8,
+    minSize: 0.35,
+    maxSize: 0.9,
+    minEmitPower: 0.15,
+    maxEmitPower: 0.55,
+    updateSpeed: 0.012,
   },
 
   enemyRoutes: {

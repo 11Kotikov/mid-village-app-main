@@ -24,6 +24,9 @@ export const PLAYER_URLS = {
 
 export const NPC_URLS = {
   witch: "/models/npc/Witch.glb",
+  king: "/models/npc/King.glb",
+  knight: "/models/npc/Knight.glb",
+  knight2: "/models/npc/Knight2.glb",
 } as const;
 
 export const POTION_URLS = {
@@ -33,6 +36,8 @@ export const POTION_URLS = {
 
 export const PROP_URLS = {
   magicCauldron: "/models/stuff/Magic_Cauldron.glb",
+  fantasyStable: "/models/props/Fantasy_Stable.glb",
+  cathedral: "/models/props/Cathedral.glb",
 } as const;
 
 export const AUDIO_URLS = {
@@ -43,6 +48,7 @@ export const AUDIO_URLS = {
 export const PARTICLES_URLS = {
   portal: "/particles/flare3_portal.png",
   fireBall: "/particles/fire_ball.jpg",
+  snow: "/particles/snow.png",
 } as const;
 
 export const SKYBOX_URLS = {
