@@ -85,6 +85,14 @@ type FireballProjectile = {
   lifeLeft: number;
 };
 
+type BossProjectile = {
+  root: TransformNode;
+  animationGroups: AnimationGroup[];
+  position: Vector3;
+  velocity: Vector3;
+  lifeLeft: number;
+};
+
 const PORTAL_COOLDOWN_SECONDS = 1;
 const PORTAL_RAYCAST_TOP_Y = 10000;
 const PORTAL_RAYCAST_LENGTH = 20000;
@@ -127,6 +135,7 @@ export class GameScene {
   #prefabs: EnemyPrefab[];
   #enemyPrefabs: Map<string, EnemyPrefab>;
   #playerPrefab: EnemyPrefab | null;
+  #bossProjectileContainer: AssetContainer | null;
   #level: Level | null;
   #groundMeshes: AbstractMesh[];
   #skybox: Skybox | null = null;
@@ -142,6 +151,9 @@ export class GameScene {
   #witch: WitchNpc | null;
   #potionPickups: PotionPickup[];
   #fireballs: FireballProjectile[];
+  #bossProjectiles: BossProjectile[];
+  #snowBoss: Enemy | null;
+  #snowBossShootCooldown: number;
   #combatEnemies: Enemy[];
   #lastTarget: Enemy | null;
   #attackCooldown: number;
@@ -168,6 +180,7 @@ export class GameScene {
     this.#prefabs = [];
     this.#enemyPrefabs = new Map();
     this.#playerPrefab = null;
+    this.#bossProjectileContainer = null;
     this.#ai = null;
     this.#player = null;
     this.#playerController = null;
@@ -180,6 +193,9 @@ export class GameScene {
     this.#witch = null;
     this.#potionPickups = [];
     this.#fireballs = [];
+    this.#bossProjectiles = [];
+    this.#snowBoss = null;
+    this.#snowBossShootCooldown = GAME_SETTINGS.snowBoss.shootIntervalSeconds;
     this.#combatEnemies = [];
     this.#lastTarget = null;
     this.#attackCooldown = 0;
@@ -227,6 +243,11 @@ export class GameScene {
       this.#enemyPrefabs.set(modelKey, enemyPrefab);
       this.#prefabs.push(enemyPrefab);
     }
+
+    this.#bossProjectileContainer = await loadGLBAsContainer(
+      this.#scene,
+      GAME_SETTINGS.snowBoss.projectileUrl
+    );
 
     const playerContainer = await loadGLBAsContainer(this.#scene, PLAYER_URLS.hoodedAdventurer);
 
@@ -443,6 +464,12 @@ export class GameScene {
         const startNodeIndex = group.startNodeIndices[index] ?? 0;
 
         enemy.configureStats(modelSettings.stats);
+
+        if (group.boss) {
+          this.#snowBoss = enemy;
+          this.#snowBossShootCooldown = GAME_SETTINGS.snowBoss.shootIntervalSeconds;
+          this.#lastTarget = enemy;
+        }
 
         ai.addPatrolEnemy(enemy, {
           ...modelSettings.ai,
@@ -736,6 +763,8 @@ export class GameScene {
     this.#updateWitch(dt);
     this.#updatePotionPickups(dt);
     this.#updateFireballs(dt);
+    this.#updateBossProjectiles(dt);
+    this.#updateSnowBoss(dt);
     this.#updateCombat(dt);
 
     if (this.#isChangingLevel) {
@@ -948,6 +977,122 @@ export class GameScene {
   #disposeFireballs() {
     for (let i = this.#fireballs.length - 1; i >= 0; i--) {
       this.#disposeFireball(i);
+    }
+  }
+
+  #updateSnowBoss(dt: number) {
+    const boss = this.#snowBoss;
+
+    if (!boss || boss.isDead || !this.#player || this.#player.isDead) {
+      this.#snowBossShootCooldown = GAME_SETTINGS.snowBoss.shootIntervalSeconds;
+      return;
+    }
+
+    const distanceToPlayer = boss.distanceTo(this.#player);
+    if (distanceToPlayer > GAME_SETTINGS.snowBoss.targetRange) {
+      this.#snowBossShootCooldown = Math.min(
+        this.#snowBossShootCooldown,
+        GAME_SETTINGS.snowBoss.shootIntervalSeconds
+      );
+      return;
+    }
+
+    this.#snowBossShootCooldown = Math.max(0, this.#snowBossShootCooldown - dt);
+
+    if (this.#snowBossShootCooldown > 0) {
+      return;
+    }
+
+    this.#snowBossShootCooldown = GAME_SETTINGS.snowBoss.shootIntervalSeconds;
+    this.#shootSnowBossProjectile(boss, this.#player);
+  }
+
+  #shootSnowBossProjectile(boss: Enemy, player: Enemy) {
+    if (!this.#bossProjectileContainer) {
+      return;
+    }
+
+    const spawnPosition = boss.root.position
+      .add(new Vector3(0, GAME_SETTINGS.snowBoss.projectileSpawnHeight, 0));
+    const targetPosition = player.hitbox.position.clone();
+    const direction = targetPosition.subtract(spawnPosition);
+
+    if (direction.lengthSquared() <= 0.0001) {
+      return;
+    }
+
+    direction.normalize();
+    spawnPosition.addInPlace(direction.scale(GAME_SETTINGS.snowBoss.projectileForwardOffset));
+
+    const instance = this.#bossProjectileContainer.instantiateModelsToScene(
+      (sourceName) => `snow_boss_iceberg_${sourceName}`,
+      true
+    );
+    const root = new TransformNode("snow_boss_iceberg", this.#scene);
+    for (const node of instance.rootNodes) {
+      node.parent = root;
+    }
+
+    root.position.copyFrom(spawnPosition);
+    root.rotation.y = Math.atan2(direction.x, direction.z)
+      + GAME_SETTINGS.snowBoss.projectileRotationYOffset;
+
+    const rawHeight = getHierarchyHeight(root);
+    if (rawHeight > 0) {
+      root.scaling.setAll(GAME_SETTINGS.snowBoss.projectileTargetHeight / rawHeight);
+    }
+
+    boss.playAttack(false);
+
+    this.#bossProjectiles.push({
+      root,
+      animationGroups: instance.animationGroups,
+      position: spawnPosition.clone(),
+      velocity: direction.scale(GAME_SETTINGS.snowBoss.projectileSpeed),
+      lifeLeft: GAME_SETTINGS.snowBoss.projectileLifetimeSeconds,
+    });
+  }
+
+  #updateBossProjectiles(dt: number) {
+    for (let i = this.#bossProjectiles.length - 1; i >= 0; i--) {
+      const projectile = this.#bossProjectiles[i];
+      projectile.lifeLeft -= dt;
+      projectile.position.addInPlace(projectile.velocity.scale(dt));
+      projectile.root.position.copyFrom(projectile.position);
+
+      if (this.#player && !this.#player.isDead) {
+        const hitRadius = GAME_SETTINGS.snowBoss.projectileHitRadius;
+        const distanceSq = Vector3.DistanceSquared(projectile.position, this.#player.hitbox.position);
+
+        if (distanceSq <= hitRadius * hitRadius) {
+          this.#player.takeDamage(GAME_SETTINGS.snowBoss.projectileDamage);
+          this.#hudStatusText(`Ice hit ${GAME_SETTINGS.snowBoss.projectileDamage}`);
+          this.#updateHud();
+          this.#disposeBossProjectile(i);
+          continue;
+        }
+      }
+
+      if (projectile.lifeLeft <= 0) {
+        this.#disposeBossProjectile(i);
+      }
+    }
+  }
+
+  #disposeBossProjectile(index: number) {
+    const [projectile] = this.#bossProjectiles.splice(index, 1);
+
+    for (const group of projectile.animationGroups) {
+      group.stop();
+      group.dispose();
+    }
+
+    projectile.root.dispose(false, true);
+  }
+
+  #disposeBossProjectiles() {
+    for (let i = this.#bossProjectiles.length - 1; i >= 0; i--) {
+      this.#disposeBossProjectile(i);
     }
   }
 
@@ -1188,8 +1333,11 @@ export class GameScene {
     this.#playerController = null;
 
     this.#disposeFireballs();
+    this.#disposeBossProjectiles();
     this.#fireballCooldown = 0;
     this.#playerCastAnimationTimeLeft = 0;
+    this.#snowBoss = null;
+    this.#snowBossShootCooldown = GAME_SETTINGS.snowBoss.shootIntervalSeconds;
 
     this.#ai?.dispose();
     this.#ai = null;
@@ -1240,6 +1388,9 @@ export class GameScene {
 
     this.#player?.dispose();
     this.#player = null;
+
+    this.#bossProjectileContainer?.dispose();
+    this.#bossProjectileContainer = null;
 
     this.#disposeHud();
 

@@ -13,6 +13,7 @@ export type LevelEnemyGroupConfig = {
   model: string;
   baseName?: string;
   startNodeIndices: readonly number[];
+  boss?: boolean;
 };
 
 export type LevelEnemyPatrolConfig = {

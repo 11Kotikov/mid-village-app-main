@@ -42,6 +42,17 @@ const VILLAGE_OUTSKIRTS_ENEMY_ROUTE = [
   { name: "village_orc_left_spawn", position: new Vector3(-16, 0, 6), pauseSeconds: 2.5 },
 ];
 
+const SNOW_TERRAIN_ENEMY_ROUTE = [
+  { name: "snowman_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
+  { name: "snowman_patrol_left", position: new Vector3(-6, 0, 14) },
+  { name: "snowman_spawn_center", position: new Vector3(0, 0, 13), pauseSeconds: 2 },
+  { name: "snowman_patrol_right", position: new Vector3(6, 0, 14) },
+  { name: "snowman_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
+  { name: "yeti_spawn_left", position: new Vector3(-14, 0, -6), pauseSeconds: 2.5 },
+  { name: "cold_planet_boss_spawn", position: new Vector3(0, 0, -16), pauseSeconds: 4 },
+  { name: "yeti_spawn_right", position: new Vector3(14, 0, -6), pauseSeconds: 2.5 },
+];
+
 export const GAME_SETTINGS = {
   startLevel: "World_Village" as LevelKey,
 
@@ -121,6 +132,7 @@ export const GAME_SETTINGS = {
     Snow_Terrain: {
       scale: 10,
       startPosition: new Vector3(0, 0, -6),
+      ambientAudioUrl: "/audio/snowWind.mp3",
     },
     Walk_in_the_Woods: {
       scale: 50,
@@ -309,11 +321,95 @@ export const GAME_SETTINGS = {
         separationWeight: 0.85,
       },
     },
+    snowman: {
+      url: "/models/enemies/Snowman.glb",
+      targetHeight: 1.65,
+      stats: {
+        maxHealth: 48,
+        health: 48,
+        maxMana: 8,
+        mana: 8,
+        attackDamage: 9,
+        attackRange: 1.9,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 1.15,
+        chaseSpeed: 2.6,
+        aggroRange: 12,
+        loseRange: 19,
+        attackCooldown: 1.25,
+      },
+    },
+    yeti: {
+      url: "/models/enemies/Yeti.glb",
+      targetHeight: 2.45,
+      stats: {
+        maxHealth: 96,
+        health: 96,
+        maxMana: 12,
+        mana: 12,
+        attackDamage: 18,
+        attackRange: 2.35,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 0.95,
+        chaseSpeed: 2.55,
+        arriveDeceleration: 2.6,
+        nodeReachedDistance: 0.6,
+        aggroRange: 14,
+        loseRange: 22,
+        attackCooldown: 1.65,
+        separationRadius: 3,
+        separationWeight: 0.9,
+      },
+    },
+    coldPlanet: {
+      url: "/models/enemies/Cold_Planet.glb",
+      targetHeight: 2.8,
+      stats: {
+        maxHealth: 360,
+        health: 360,
+        maxMana: 80,
+        mana: 80,
+        attackDamage: 22,
+        attackRange: 3.2,
+      },
+      ai: {
+        ...DEFAULT_ENEMY_AI,
+        speed: 0.55,
+        chaseSpeed: 1.45,
+        arriveDeceleration: 3,
+        nodeReachedDistance: 0.75,
+        aggroRange: 22,
+        loseRange: 32,
+        attackCooldown: 2.2,
+        separationRadius: 4.5,
+        separationWeight: 1,
+        respawnDelaySeconds: 420,
+      },
+    },
+  },
+
+  snowBoss: {
+    projectileUrl: "/models/projectiles/iceberg.glb",
+    projectileTargetHeight: 0.85,
+    projectileRotationYOffset: Math.PI / 2,
+    shootIntervalSeconds: 4,
+    projectileSpeed: 11,
+    projectileLifetimeSeconds: 5,
+    projectileDamage: 24,
+    projectileHitRadius: 1.15,
+    projectileSpawnHeight: 1.8,
+    projectileForwardOffset: 1.5,
+    targetRange: 34,
   },
 
   enemyRoutes: {
     default: DEFAULT_ENEMY_ROUTE,
     villageOutskirts: VILLAGE_OUTSKIRTS_ENEMY_ROUTE,
+    snowTerrain: SNOW_TERRAIN_ENEMY_ROUTE,
   },
 
   enemiesByLevel: {
@@ -326,8 +422,12 @@ export const GAME_SETTINGS = {
       groups: DEFAULT_ENEMY_GROUPS,
     },
     Snow_Terrain: {
-      route: "default",
-      groups: DEFAULT_ENEMY_GROUPS,
+      route: "snowTerrain",
+      groups: [
+        { model: "snowman", baseName: "snowman", startNodeIndices: [0, 2, 4] },
+        { model: "yeti", baseName: "yeti", startNodeIndices: [5, 7] },
+        { model: "coldPlanet", baseName: "cold_planet_boss", startNodeIndices: [6], boss: true },
+      ],
     },
     Walk_in_the_Woods: {
       route: "default",
@@ -349,6 +449,7 @@ export const GAME_SETTINGS = {
         model: string;
         baseName?: string;
         startNodeIndices: readonly number[];
+        boss?: boolean;
       }>;
     }
   >,
