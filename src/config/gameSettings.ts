@@ -1,4 +1,5 @@
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Color4 } from "@babylonjs/core/Maths/math.color";
 
 import type { LevelKey } from "../assets/paths";
 
@@ -32,6 +33,7 @@ export const GAME_SETTINGS = {
       points: {
         Blocks_Trailer_Map: new Vector3(0, 0, -6),
         Cave_Scene_Draft: new Vector3(0, 0, -6),
+        Dark_Stage: new Vector3(0, 0, 4),
         Snow_Terrain: new Vector3(0, 0, -6),
         Walk_in_the_Woods: new Vector3(-9.45, 0, 26),
         Warefall: new Vector3(0, 0, -6),
@@ -113,6 +115,33 @@ export const GAME_SETTINGS = {
     },
   },
 
+  // Dark_Stage: парящая книга в центре карты и слабое зеленоватое свечение вокруг нее.
+  darkStageProps: {
+    evilBook: {
+      position: new Vector3(0, 0, 0),
+      targetHeight: 1.05,
+      hoverHeight: 1.25,
+      floatAmplitude: 0.08,
+      floatSpeed: 1.35,
+      rotationY: 0,
+      glow: {
+        capacity: 350,
+        emitRate: 28,
+        minLifeTime: 1.2,
+        maxLifeTime: 2.4,
+        minSize: 0.12,
+        maxSize: 0.32,
+        minEmitPower: 0.05,
+        maxEmitPower: 0.18,
+        minEmitBox: new Vector3(-0.45, -0.12, -0.45),
+        maxEmitBox: new Vector3(0.45, 0.28, 0.45),
+        color1: new Color4(0.55, 1, 0.62, 0.22),
+        color2: new Color4(0.75, 1, 0.82, 0.14),
+        colorDead: new Color4(0.2, 0.75, 0.32, 0),
+      },
+    },
+  },
+
   // Blocks_Trailer_Map: замок/собор, NPC рядом с ним и маршруты патруля рыцарей.
   blocksTrailerProps: {
     cathedral: {
@@ -166,6 +195,10 @@ export const GAME_SETTINGS = {
     Cave_Scene_Draft: {
       scale: 60,
       startPosition: new Vector3(0, 0, -6),
+    },
+    Dark_Stage: {
+      scale: 10,
+      startPosition: new Vector3(0, 0, 4),
     },
     Snow_Terrain: {
       scale: 10,
@@ -222,6 +255,20 @@ export const GAME_SETTINGS = {
         targetLevel: "Snow_Terrain" as LevelKey,
         targetPortalId: "snow_from_cave",
         arrivalOffset: new Vector3(-4, 0, 0),
+      },
+    ],
+    Dark_Stage: [
+      {
+        id: "dark_stage_from_village",
+        position: new Vector3(0, 0, 8),
+        targetLevel: "World_Village" as LevelKey,
+        targetPortalId: "village_to_dark_stage",
+        arrivalOffset: new Vector3(0, 0, -4),
+        particleColors: {
+          color1: new Color4(1, 0.08, 0.04, 1),
+          color2: new Color4(0.7, 0, 0, 1),
+          colorDead: new Color4(0.4, 0, 0, 0),
+        },
       },
     ],
     Snow_Terrain: [
@@ -317,6 +364,21 @@ export const GAME_SETTINGS = {
         radius: 0.75,
         visualHeight: 1.35,
         label: "Водопад",
+      },
+      {
+        id: "village_to_dark_stage",
+        position: new Vector3(7.2, 0, 0),
+        targetLevel: "Dark_Stage" as LevelKey,
+        targetPortalId: "dark_stage_from_village",
+        arrivalOffset: new Vector3(0, 0, -1.5),
+        radius: 0.75,
+        visualHeight: 1.35,
+        label: "Тьма",
+        particleColors: {
+          color1: new Color4(1, 0.08, 0.04, 1),
+          color2: new Color4(0.7, 0, 0, 1),
+          colorDead: new Color4(0.4, 0, 0, 0),
+        },
       },
     ],
   },
@@ -755,6 +817,11 @@ export const GAME_SETTINGS = {
         { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
         { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
       ],
+    },
+    Dark_Stage: {
+      // Здесь можно добавить врагов на Dark_Stage. Сейчас карта без врагов: только книга и портал.
+      route: [],
+      groups: [],
     },
     Snow_Terrain: {
       // Здесь меняй White_man, Yeti и босса Cold_Planet на Snow_Terrain.

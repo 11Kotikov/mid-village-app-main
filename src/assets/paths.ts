@@ -3,6 +3,7 @@ import { GAME_SETTINGS } from "../config/gameSettings";
 export const LEVEL_URLS = {
   Blocks_Trailer_Map: "/models/environmental/Blocks_Trailer_Map.glb",
   Cave_Scene_Draft: "/models/environmental/Cave_Scene_Draft.glb",
+  Dark_Stage: "/models/environmental/Dark_Stage.glb",
   Snow_Terrain: "/models/environmental/Snow_Terrain.glb",
   Walk_in_the_Woods: "/models/environmental/Walk_in_the_Woods.glb",
   Warefall: "/models/environmental/Warefall.glb",
@@ -36,6 +37,7 @@ export const POTION_URLS = {
 
 export const PROP_URLS = {
   magicCauldron: "/models/stuff/Magic_Cauldron.glb",
+  evilBook: "/models/stuff/Evil_Book.glb",
   fantasyStable: "/models/props/Fantasy_Stable.glb",
   cathedral: "/models/props/Cathedral.glb",
 } as const;

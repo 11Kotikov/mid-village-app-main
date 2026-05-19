@@ -55,6 +55,7 @@ import {
   type LoadedSceneObject,
 } from "./sceneObjects";
 import { createFireballParticleSystem } from "../effects/FireballEffect";
+import { createEvilBookGlow } from "../effects/BookGlow";
 import { createPortalLabel } from "../effects/PortalLabel";
 import { PortalParticleSystem } from "../effects/PortalParticleSystem";
 import { createSnowTerrainSnowfall } from "../effects/Snowfall";
@@ -84,6 +85,14 @@ type PatrolNpc = LoadedSceneObject & {
   speed: number;
   groundOffsetY: number;
   walkAnimation: AnimationGroup | null;
+};
+
+type FloatingSceneObject = LoadedSceneObject & {
+  baseY: number;
+  elapsed: number;
+  floatAmplitude: number;
+  floatSpeed: number;
+  particleSystem: ParticleSystem | null;
 };
 
 type FireballProjectile = {
@@ -154,6 +163,7 @@ export class GameScene {
   #disposeFireballHotkey: (() => void) | null;
   #activePortals: ActivePortal[];
   #activeSceneObjects: LoadedSceneObject[];
+  #floatingSceneObjects: FloatingSceneObject[];
   #patrolNpcs: PatrolNpc[];
   #witch: WitchNpc | null;
   #potionPickups: PotionPickup[];
@@ -194,6 +204,7 @@ export class GameScene {
     this.#disposeFireballHotkey = null;
     this.#activePortals = [];
     this.#activeSceneObjects = [];
+    this.#floatingSceneObjects = [];
     this.#patrolNpcs = [];
     this.#witch = null;
     this.#potionPickups = [];
@@ -510,6 +521,9 @@ export class GameScene {
         useRectEmitter: true,
         rectWidth: radius * 1.6,
         rectHeight: visualHeight,
+        color1: definition.particleColors?.color1,
+        color2: definition.particleColors?.color2,
+        colorDead: definition.particleColors?.colorDead,
       });
 
       this.#activePortals.push({
@@ -544,6 +558,11 @@ export class GameScene {
         targetHeight: stable.targetHeight,
         rotationY: stable.rotationY,
       });
+      return;
+    }
+
+    if (levelKey === "Dark_Stage") {
+      await this.#createDarkStageObjects(groundMeshes);
       return;
     }
 
@@ -603,6 +622,28 @@ export class GameScene {
         cooldownLeft: 0,
       }
     );
+  }
+
+  async #createDarkStageObjects(groundMeshes: AbstractMesh[]) {
+    const bookSettings = GAME_SETTINGS.darkStageProps.evilBook;
+    const book = await this.#loadSceneObject(PROP_URLS.evilBook, {
+      name: "dark_stage_evil_book",
+      position: bookSettings.position,
+      groundMeshes,
+      targetHeight: bookSettings.targetHeight,
+      rotationY: bookSettings.rotationY,
+    });
+
+    book.root.position.y += bookSettings.hoverHeight;
+
+    this.#floatingSceneObjects.push({
+      ...book,
+      baseY: book.root.position.y,
+      elapsed: 0,
+      floatAmplitude: bookSettings.floatAmplitude,
+      floatSpeed: bookSettings.floatSpeed,
+      particleSystem: createEvilBookGlow(this.#scene, book.root, bookSettings.glow),
+    });
   }
 
   async #createBlocksTrailerCastleNpcs(groundMeshes: AbstractMesh[]) {
@@ -756,6 +797,7 @@ export class GameScene {
       portal.effect.update(dt);
     }
 
+    this.#updateFloatingSceneObjects(dt);
     this.#updateWitch(dt);
     this.#updatePatrolNpcs(dt);
     this.#updatePotionPickups(dt);
@@ -775,6 +817,14 @@ export class GameScene {
     this.#ai?.update(dt);
     this.#spawner?.update(dt);
     this.#checkPortalTransitions();
+  }
+
+  #updateFloatingSceneObjects(dt: number) {
+    for (const object of this.#floatingSceneObjects) {
+      object.elapsed += dt;
+      object.root.position.y =
+        object.baseY + Math.sin(object.elapsed * object.floatSpeed) * object.floatAmplitude;
+    }
   }
 
   #updatePatrolNpcs(dt: number) {
@@ -1361,6 +1411,11 @@ export class GameScene {
       portal.labelRoot?.dispose(false, true);
     }
     this.#activePortals = [];
+
+    for (const object of this.#floatingSceneObjects) {
+      object.particleSystem?.dispose();
+    }
+    this.#floatingSceneObjects = [];
 
     for (const object of this.#activeSceneObjects) {
       object.container.dispose();

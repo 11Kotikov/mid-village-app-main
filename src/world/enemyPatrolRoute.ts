@@ -35,6 +35,7 @@ export const ENEMY_PATROL_ROUTE = GAME_SETTINGS.enemiesByLevel.World_Village.rou
 export const LEVEL_ENEMY_PATROL_CONFIG = {
   Blocks_Trailer_Map: getLevelEnemyConfig("Blocks_Trailer_Map"),
   Cave_Scene_Draft: getLevelEnemyConfig("Cave_Scene_Draft"),
+  Dark_Stage: getLevelEnemyConfig("Dark_Stage"),
   Snow_Terrain: getLevelEnemyConfig("Snow_Terrain"),
   Walk_in_the_Woods: getLevelEnemyConfig("Walk_in_the_Woods"),
   Warefall: getLevelEnemyConfig("Warefall"),

@@ -25,6 +25,9 @@ export interface PortalParticleOptions {
   useRectEmitter?: boolean;    // true - прямоугольная эмиссия (дверь), false - круговая
   rectWidth?: number;          // ширина прямоугольной области эмиссии
   rectHeight?: number;         // высота прямоугольной области эмиссии
+  color1?: Color4;             // основной цвет частиц
+  color2?: Color4;             // второй цвет частиц
+  colorDead?: Color4;          // цвет при исчезновении
 }
 
 export class PortalParticleSystem {
@@ -123,10 +126,10 @@ export class PortalParticleSystem {
     this.particleSystem.minScaleY = 1.2;
     this.particleSystem.maxScaleY = 2.0;
 
-    // Цвета: магическая дверь (фиолетово-голубое свечение)
-    this.particleSystem.color1 = new Color4(0.7, 0.4, 1.0, 1.0);
-    this.particleSystem.color2 = new Color4(0.2, 0.6, 1.0, 1.0);
-    this.particleSystem.colorDead = new Color4(0.5, 0.2, 0.8, 0.0);
+    // Цвета: магическая дверь (по умолчанию фиолетово-голубое свечение).
+    this.particleSystem.color1 = options.color1 ?? new Color4(0.7, 0.4, 1.0, 1.0);
+    this.particleSystem.color2 = options.color2 ?? new Color4(0.2, 0.6, 1.0, 1.0);
+    this.particleSystem.colorDead = options.colorDead ?? new Color4(0.5, 0.2, 0.8, 0.0);
 
     // Запуск
     this.particleSystem.start();
