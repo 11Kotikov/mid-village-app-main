@@ -26,11 +26,24 @@ type RespawnOptions = {
   mana?: number;
 };
 
+type EnemyAnimationAction = "idle" | "walk" | "run" | "attack" | "death";
+
+export type EnemyAnimationSet = Partial<Record<EnemyAnimationAction, readonly string[]>>;
+
 const DEFAULT_DEATH_DESPAWN_SECONDS = 3.5;
+
+const DEFAULT_ANIMATIONS = {
+  idle: ["Idle"],
+  walk: ["Walk"],
+  run: ["Run", "Running", "Sprint"],
+  attack: ["Attack", "Punch", "Weapon", "Sword", "Slash", "Melee"],
+  death: ["Death", "Die", "Dead"],
+} satisfies Record<EnemyAnimationAction, readonly string[]>;
 
 export class Enemy {
   #root: TransformNode;
   #animationGroups: AnimationGroup[];
+  #animations: EnemyAnimationSet;
   #baseScaling: Vector3;
   #groundOffsetY: number;
   #activeAnimationName: string | null;
@@ -41,9 +54,10 @@ export class Enemy {
   #dead: boolean;
   #deathDespawnTimer: number | null;
 
-  constructor(root: TransformNode, animationGroups: AnimationGroup[]) {
+  constructor(root: TransformNode, animationGroups: AnimationGroup[], animations: EnemyAnimationSet = {}) {
     this.#root = root;
     this.#animationGroups = animationGroups;
+    this.#animations = animations;
     this.#baseScaling = root.scaling.clone();
     this.#groundOffsetY = 0;
     this.#activeAnimationName = null;
@@ -218,17 +232,21 @@ export class Enemy {
   }
 
   playOnlyBySuffix(suffix: string, loop = true): boolean {
-    const needle = suffix.toLowerCase();
+    return this.#playAnimationByNames([suffix], loop);
+  }
 
+  #playAnimationByNames(names: readonly string[], loop = true): boolean {
     let selected: AnimationGroup | null = null;
+    let selectedScore = 0;
 
     for (const g of this.#animationGroups) {
-      const raw = (g.name ?? "").toLowerCase();
-      const tail = raw.split("|").pop() ?? raw;
+      for (const name of names) {
+        const score = this.#scoreAnimationMatch(g.name ?? "", name);
 
-      if (tail === needle || raw.endsWith(`|${needle}`) || raw.endsWith(needle)) {
-        selected = g;
-        break;
+        if (score > selectedScore) {
+          selected = g;
+          selectedScore = score;
+        }
       }
     }
 
@@ -253,39 +271,88 @@ export class Enemy {
     return true;
   }
 
+  #scoreAnimationMatch(rawName: string, expectedName: string): number {
+    const raw = rawName.toLowerCase();
+    const needle = expectedName.toLowerCase();
+    const parts = raw.split("|").map((p) => p.trim()).filter(Boolean);
+    const tail = parts.at(-1) ?? raw;
+
+    if (raw === needle || tail === needle) {
+      return 120;
+    }
+
+    if (raw.endsWith(`|${needle}`) || raw.endsWith(needle)) {
+      return 100;
+    }
+
+    if (parts.some((part) => part === needle)) {
+      return 90;
+    }
+
+    const rawTokens = raw.split(/[\s_|.:-]+/).filter(Boolean);
+    const expectedTokens = needle.split(/[\s_|.:-]+/).filter(Boolean);
+
+    if (expectedTokens.length > 0 && this.#containsTokenSequence(rawTokens, expectedTokens)) {
+      return 80;
+    }
+
+    if (raw.includes(`|${needle}|`) || raw.includes(`|${needle}`)) {
+      return 70;
+    }
+
+    if (raw.includes(needle)) {
+      return 50;
+    }
+
+    return 0;
+  }
+
+  #containsTokenSequence(tokens: string[], expected: string[]): boolean {
+    if (expected.length > tokens.length) {
+      return false;
+    }
+
+    for (let i = 0; i <= tokens.length - expected.length; i += 1) {
+      let matches = true;
+
+      for (let j = 0; j < expected.length; j += 1) {
+        if (tokens[i + j] !== expected[j]) {
+          matches = false;
+          break;
+        }
+      }
+
+      if (matches) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  #playAction(action: EnemyAnimationAction, loop = true): boolean {
+    const names = [...(this.#animations[action] ?? []), ...DEFAULT_ANIMATIONS[action]];
+    return this.#playAnimationByNames(names, loop);
+  }
+
   playWalk(loop = true): boolean {
-    return this.playOnlyBySuffix("Walk", loop);
+    return this.#playAction("walk", loop);
   }
 
   playRun(loop = true): boolean {
-    return (
-      this.playOnlyBySuffix("Run", loop) ||
-      this.playOnlyBySuffix("Running", loop) ||
-      this.playOnlyBySuffix("Sprint", loop)
-    );
+    return this.#playAction("run", loop);
   }
 
   playIdle(loop = true): boolean {
-    return this.playOnlyBySuffix("Idle", loop);
+    return this.#playAction("idle", loop);
   }
 
   playAttack(loop = false): boolean {
-    return (
-      this.playOnlyBySuffix("Attack", loop) ||
-      this.playOnlyBySuffix("Punch", loop) ||
-      this.playOnlyBySuffix("Weapon", loop) ||
-      this.playOnlyBySuffix("Slash", loop) ||
-      this.playOnlyBySuffix("Melee", loop) ||
-      this.playWalk(false)
-    );
+    return this.#playAction("attack", loop) || this.playWalk(false);
   }
 
   playDeath(loop = false): boolean {
-    return (
-      this.playOnlyBySuffix("Death", loop) ||
-      this.playOnlyBySuffix("Die", loop) ||
-      this.playOnlyBySuffix("Dead", loop)
-    );
+    return this.#playAction("death", loop);
   }
 
   playAll(loop = true) {

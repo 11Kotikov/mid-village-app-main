@@ -5,7 +5,7 @@ import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Ray } from "@babylonjs/core/Culling/ray";
 
-import { Enemy } from "./Enemy";
+import { Enemy, type EnemyAnimationSet } from "./Enemy";
 import { getHierarchyHeight, getHierarchyMinY } from "../assets/measure";
 
 type SizeOptions = { targetHeight: number } | { scale: number };
@@ -26,13 +26,21 @@ export class EnemyPrefab {
 
   #targetHeight: number | null;
   #fixedScale: number | null;
+  #animations: EnemyAnimationSet;
 
   #defaults: Required<Omit<SpawnOptions, "groundMeshes">> & { groundMeshes: undefined };
 
-  constructor(scene: Scene, container: AssetContainer, kind: string, size: SizeOptions) {
+  constructor(
+    scene: Scene,
+    container: AssetContainer,
+    kind: string,
+    size: SizeOptions,
+    animations: EnemyAnimationSet = {}
+  ) {
     this.#scene = scene;
     this.#container = container;
     this.#kind = kind;
+    this.#animations = animations;
 
     if ("targetHeight" in size) {
       this.#targetHeight = size.targetHeight;
@@ -115,14 +123,14 @@ export class EnemyPrefab {
       );
     }
 
-    const enemy = new Enemy(root, inst.animationGroups);
+    const enemy = new Enemy(root, inst.animationGroups, this.#animations);
 
     if (hitGroundY != null) {
       enemy.setGroundOffsetY(root.position.y - hitGroundY);
     }
 
-    if (!enemy.playOnlyBySuffix("Walk", true)) {
-      enemy.playOnlyBySuffix("Idle", true);
+    if (!enemy.playWalk(true)) {
+      enemy.playIdle(true);
     }
 
     return enemy;

@@ -2,87 +2,13 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 
 import type { LevelKey } from "../assets/paths";
 
-const DEFAULT_ENEMY_AI = {
-  maxForce: 12,
-  arriveDeceleration: 2,
-  nodeReachedDistance: 0.5,
-  aggroRange: 13,
-  loseRange: 20,
-  attackCooldown: 1.1,
-  separationRadius: 2.4,
-  separationWeight: 0.7,
-  yawOffset: 0,
-};
-
-const DEFAULT_ENEMY_ROUTE = [
-  { name: "stop_1", position: new Vector3(2, 0, 8), pauseSeconds: 2.5 },
-  { name: "turn_top_right", position: new Vector3(10, 0, 8) },
-  { name: "stop_2", position: new Vector3(10, 0, 2), pauseSeconds: 2.5 },
-  { name: "turn_bottom_right", position: new Vector3(10, 0, -4) },
-  { name: "stop_3", position: new Vector3(4, 0, -4), pauseSeconds: 2.5 },
-  { name: "stop_4", position: new Vector3(-3, 0, -4), pauseSeconds: 2.5 },
-  { name: "turn_left_lower", position: new Vector3(-3, 0, 1) },
-  { name: "stop_5", position: new Vector3(-8, 0, 1), pauseSeconds: 2.5 },
-  { name: "turn_center_left", position: new Vector3(2, 0, 1) },
-];
-
-const DEFAULT_ENEMY_GROUPS = [
-  { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
-  { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
-];
-
-const BLOCKS_TRAILER_ENEMY_ROUTE = [
-  { name: "skeleton_headless_spawn_left", position: new Vector3(-10, 0, 8), pauseSeconds: 2 },
-  { name: "skeleton_headless_patrol_left", position: new Vector3(-5, 0, 13) },
-  { name: "skeleton_headless_spawn_center", position: new Vector3(0, 0, 9), pauseSeconds: 2 },
-  { name: "skeleton_headless_patrol_right", position: new Vector3(5, 0, 13) },
-  { name: "skeleton_headless_spawn_right", position: new Vector3(10, 0, 8), pauseSeconds: 2 },
-  { name: "skeleton_helmed_spawn_left", position: new Vector3(-12, 0, -2), pauseSeconds: 2.5 },
-  { name: "skeleton_helmed_patrol_center", position: new Vector3(0, 0, 2) },
-  { name: "skeleton_helmed_spawn_right", position: new Vector3(12, 0, -2), pauseSeconds: 2.5 },
-  { name: "skeleton_boss_spawn_left", position: new Vector3(-9, 0, -13), pauseSeconds: 4 },
-  { name: "skeleton_boss_spawn_right", position: new Vector3(9, 0, -13), pauseSeconds: 4 },
-];
-
-const VILLAGE_OUTSKIRTS_ENEMY_ROUTE = [
-  { name: "village_far_left_spawn", position: new Vector3(-14, 0, 12), pauseSeconds: 2 },
-  { name: "village_far_left_turn", position: new Vector3(-10, 0, 18) },
-  { name: "village_north_spawn", position: new Vector3(0, 0, 18), pauseSeconds: 2 },
-  { name: "village_far_right_turn", position: new Vector3(10, 0, 18) },
-  { name: "village_far_right_spawn", position: new Vector3(14, 0, 12), pauseSeconds: 2 },
-  { name: "village_orc_right_spawn", position: new Vector3(16, 0, 6), pauseSeconds: 2.5 },
-  { name: "village_back_patrol", position: new Vector3(0, 0, 22) },
-  { name: "village_orc_left_spawn", position: new Vector3(-16, 0, 6), pauseSeconds: 2.5 },
-];
-
-const SNOW_TERRAIN_ENEMY_ROUTE = [
-  { name: "white_man_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
-  { name: "white_man_patrol_left", position: new Vector3(-6, 0, 14) },
-  { name: "white_man_spawn_center", position: new Vector3(0, 0, 13), pauseSeconds: 2 },
-  { name: "white_man_patrol_right", position: new Vector3(6, 0, 14) },
-  { name: "white_man_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
-  { name: "yeti_spawn_left", position: new Vector3(-14, 0, -6), pauseSeconds: 2.5 },
-  { name: "cold_planet_boss_spawn", position: new Vector3(0, 0, -16), pauseSeconds: 4 },
-  { name: "yeti_spawn_right", position: new Vector3(14, 0, -6), pauseSeconds: 2.5 },
-];
-
-const WAREFALL_ENEMY_ROUTE = [
-  { name: "fish_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
-  { name: "fish_patrol_left", position: new Vector3(-6, 0, 13) },
-  { name: "fish_spawn_center", position: new Vector3(0, 0, 10), pauseSeconds: 2 },
-  { name: "fish_patrol_right", position: new Vector3(6, 0, 13) },
-  { name: "fish_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
-  { name: "frog_spawn_left", position: new Vector3(-11, 0, -4), pauseSeconds: 2.5 },
-  { name: "mako_boss_spawn", position: new Vector3(0, 0, -14), pauseSeconds: 4 },
-  { name: "frog_spawn_right", position: new Vector3(11, 0, -4), pauseSeconds: 2.5 },
-];
-
 export const GAME_SETTINGS = {
+  // Стартовая карта после запуска игры.
   startLevel: "World_Village" as LevelKey,
 
+  // Игрок: размер, камера, здоровье/мана, атака мечом, регенерация и fireball.
   player: {
     targetHeight: 1.85,
-    cameraMoveSpeed: 6.5,
     stats: {
       maxHealth: 120,
       health: 120,
@@ -126,6 +52,27 @@ export const GAME_SETTINGS = {
     },
   },
 
+  // Камера: здесь можно менять стартовый угол, дистанцию, зум и управление.
+  camera: {
+    alpha: (2 * Math.PI) / 3,
+    beta: Math.PI / 3,
+    radius: 60,
+    target: new Vector3(10, 0, 10),
+    wheelPrecision: 10,
+    inertia: 0.65,
+    panningInertia: 0,
+    lowerBetaLimit: 0.25,
+    upperBetaLimit: Math.PI * 0.48,
+    // Скорость движения камеры по W/A/S/D. Увеличь число, если камера должна двигаться быстрее.
+    moveSpeed: 3,
+    // Чувствительность вращения камеры при зажатом колесе мыши.
+    middleMouseRotateSpeed: 0.005,
+    // Кнопки, которые оставляет стандартному Babylon-управлению: 0 - левая, 2 - правая.
+    // Колесо мыши (1) обрабатывается отдельно ниже в cameraControls.ts.
+    pointerButtons: [0, 2],
+  },
+
+  // Ведьма у порталов: частота wave-анимации, радиус восстановления маны, размер модели.
   witch: {
     waveIntervalSeconds: 20,
     manaRestoreRadius: 1.45,
@@ -133,12 +80,14 @@ export const GAME_SETTINGS = {
     targetHeight: 1.8,
   },
 
+  // Зелья рядом с ведьмой: радиус подбора, задержка повторного срабатывания, размер моделей.
   pickups: {
     potionRadius: 0.85,
     potionCooldownSeconds: 2,
     potionTargetHeight: 0.7,
   },
 
+  // Таблички над порталами: размер текстуры и физический размер плоскости в мире.
   portalLabels: {
     textureWidth: 512,
     textureHeight: 160,
@@ -146,6 +95,7 @@ export const GAME_SETTINGS = {
     planeHeight: 0.48,
   },
 
+  // World_Village: точки ведьмы, зелий, котла и безопасного респавна рядом с хабом.
   worldVillageHub: {
     witch: new Vector3(0, 0, 2.6),
     healthPotion: new Vector3(-0.75, 0, 1.65),
@@ -154,6 +104,7 @@ export const GAME_SETTINGS = {
     playerRespawn: new Vector3(0, 0, -2.25),
   },
 
+  // Cave_Scene_Draft: декоративные объекты на карте.
   caveSceneDraftProps: {
     fantasyStable: {
       position: new Vector3(8, 0, -10),
@@ -162,6 +113,7 @@ export const GAME_SETTINGS = {
     },
   },
 
+  // Blocks_Trailer_Map: замок/собор, NPC рядом с ним и маршруты патруля рыцарей.
   blocksTrailerProps: {
     cathedral: {
       position: new Vector3(0, 0, -20),
@@ -204,6 +156,8 @@ export const GAME_SETTINGS = {
     },
   },
 
+  // Настройки уровней. scale меняет размер всей GLB-карты, startPosition - старт игрока,
+  // ambientAudioUrl - музыка/звук окружения для конкретной карты.
   levels: {
     Blocks_Trailer_Map: {
       scale: 33,
@@ -235,7 +189,8 @@ export const GAME_SETTINGS = {
     },
   } satisfies Record<LevelKey, { scale: number; startPosition: Vector3; ambientAudioUrl?: string }>,
 
-  portalDefaults: {
+  // Общие параметры порталов. Можно переопределить внутри конкретного портала ниже.
+  portalCommon: {
     radius: 2.4,
     visualHeight: 3,
     arrivalOffset: new Vector3(0, 0, -4),
@@ -243,6 +198,8 @@ export const GAME_SETTINGS = {
     villageVisualHeight: 1.35,
   },
 
+  // Порталы по картам. position - место портала на текущей карте,
+  // targetLevel/targetPortalId - куда переносит, label - подпись над порталом.
   portals: {
     Blocks_Trailer_Map: [
       {
@@ -364,10 +321,18 @@ export const GAME_SETTINGS = {
     ],
   },
 
+  // Каталог моделей врагов. Здесь меняй путь к GLB, рост, анимации, здоровье и AI-поведение.
   enemyModels: {
     goblin: {
       url: "/models/enemies/Goblin.glb",
       targetHeight: 1.6,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Attack"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 42,
         health: 42,
@@ -377,7 +342,15 @@ export const GAME_SETTINGS = {
         attackRange: 1.8,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
+        arriveDeceleration: 2,
+        nodeReachedDistance: 0.5,
+        aggroRange: 13,
+        loseRange: 20,
+        attackCooldown: 1.1,
+        separationRadius: 2.4,
+        separationWeight: 0.7,
+        yawOffset: 0,
         speed: 1.4,
         chaseSpeed: 3.2,
       },
@@ -385,6 +358,13 @@ export const GAME_SETTINGS = {
     orc: {
       url: "/models/enemies/Orc.glb",
       targetHeight: 2.2,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Punch", "Weapon"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 72,
         health: 72,
@@ -394,7 +374,7 @@ export const GAME_SETTINGS = {
         attackRange: 2.1,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
         speed: 1,
         chaseSpeed: 2.7,
         arriveDeceleration: 2.5,
@@ -404,11 +384,19 @@ export const GAME_SETTINGS = {
         attackCooldown: 1.45,
         separationRadius: 2.8,
         separationWeight: 0.85,
+        yawOffset: 0,
       },
     },
     skeletonHeadless: {
       url: "/models/enemies/Skeleton_headless.glb",
       targetHeight: 1.75,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Sword", "Punch"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 48,
         health: 48,
@@ -418,17 +406,29 @@ export const GAME_SETTINGS = {
         attackRange: 1.85,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
+        arriveDeceleration: 2,
+        nodeReachedDistance: 0.5,
         speed: 1.25,
         chaseSpeed: 3,
         aggroRange: 13,
         loseRange: 20,
         attackCooldown: 1.15,
+        separationRadius: 2.4,
+        separationWeight: 0.7,
+        yawOffset: 0,
       },
     },
     skeletonHelmed: {
       url: "/models/enemies/Skeleton_helmed.glb",
       targetHeight: 1.9,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Attack"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 76,
         health: 76,
@@ -438,7 +438,7 @@ export const GAME_SETTINGS = {
         attackRange: 2.05,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
         speed: 1,
         chaseSpeed: 2.65,
         arriveDeceleration: 2.4,
@@ -448,11 +448,19 @@ export const GAME_SETTINGS = {
         attackCooldown: 1.4,
         separationRadius: 2.7,
         separationWeight: 0.85,
+        yawOffset: 0,
       },
     },
     skeletonHelmedBoss: {
       url: "/models/enemies/Skeleton_helmed.glb",
       targetHeight: 2.35,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Attack"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 280,
         health: 280,
@@ -462,7 +470,7 @@ export const GAME_SETTINGS = {
         attackRange: 2.6,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
         speed: 0.85,
         chaseSpeed: 2.25,
         arriveDeceleration: 2.8,
@@ -472,12 +480,20 @@ export const GAME_SETTINGS = {
         attackCooldown: 1.9,
         separationRadius: 4,
         separationWeight: 1,
+        yawOffset: 0,
         respawnDelaySeconds: 420,
       },
     },
     whiteMan: {
       url: "/models/enemies/White_man.glb",
       targetHeight: 1.65,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Punch"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 48,
         health: 48,
@@ -487,17 +503,29 @@ export const GAME_SETTINGS = {
         attackRange: 1.9,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
+        arriveDeceleration: 2,
+        nodeReachedDistance: 0.5,
         speed: 1.15,
         chaseSpeed: 2.6,
         aggroRange: 12,
         loseRange: 19,
         attackCooldown: 1.25,
+        separationRadius: 2.4,
+        separationWeight: 0.7,
+        yawOffset: 0,
       },
     },
     fish: {
       url: "/models/enemies/Fish.glb",
       targetHeight: 1.55,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Punch", "Weapon"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 52,
         health: 52,
@@ -507,17 +535,29 @@ export const GAME_SETTINGS = {
         attackRange: 1.85,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
+        arriveDeceleration: 2,
+        nodeReachedDistance: 0.5,
         speed: 1.25,
         chaseSpeed: 2.95,
         aggroRange: 13,
         loseRange: 20,
         attackCooldown: 1.15,
+        separationRadius: 2.4,
+        separationWeight: 0.7,
+        yawOffset: 0,
       },
     },
     frog: {
       url: "/models/enemies/Frog.glb",
       targetHeight: 1.35,
+      animations: {
+        idle: ["Frog_Idle"],
+        walk: ["Frog_Jump"],
+        run: ["Frog_Jump"],
+        attack: ["Frog_Attack"],
+        death: ["Frog_Death"],
+      },
       stats: {
         maxHealth: 44,
         health: 44,
@@ -527,18 +567,29 @@ export const GAME_SETTINGS = {
         attackRange: 1.7,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
+        arriveDeceleration: 2,
+        nodeReachedDistance: 0.5,
         speed: 1.35,
         chaseSpeed: 3.15,
         aggroRange: 12,
         loseRange: 19,
         attackCooldown: 1.05,
         separationRadius: 2.1,
+        separationWeight: 0.7,
+        yawOffset: 0,
       },
     },
     makoBoss: {
       url: "/models/enemies/Mako.glb",
       targetHeight: 2.45,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Punch", "Sword"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 320,
         health: 320,
@@ -548,7 +599,7 @@ export const GAME_SETTINGS = {
         attackRange: 2.7,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
         speed: 0.85,
         chaseSpeed: 2.25,
         arriveDeceleration: 2.8,
@@ -558,12 +609,20 @@ export const GAME_SETTINGS = {
         attackCooldown: 1.9,
         separationRadius: 4,
         separationWeight: 1,
+        yawOffset: 0,
         respawnDelaySeconds: 420,
       },
     },
     yeti: {
       url: "/models/enemies/Yeti.glb",
       targetHeight: 2.45,
+      animations: {
+        idle: ["Idle"],
+        walk: ["Walk"],
+        run: ["Run"],
+        attack: ["Attack"],
+        death: ["Death"],
+      },
       stats: {
         maxHealth: 96,
         health: 96,
@@ -573,7 +632,7 @@ export const GAME_SETTINGS = {
         attackRange: 2.35,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
         speed: 0.95,
         chaseSpeed: 2.55,
         arriveDeceleration: 2.6,
@@ -583,11 +642,19 @@ export const GAME_SETTINGS = {
         attackCooldown: 1.65,
         separationRadius: 3,
         separationWeight: 0.9,
+        yawOffset: 0,
       },
     },
     coldPlanet: {
       url: "/models/enemies/Cold_Planet.glb",
       targetHeight: 2.8,
+      animations: {
+        idle: [],
+        walk: [],
+        run: [],
+        attack: [],
+        death: [],
+      },
       stats: {
         maxHealth: 360,
         health: 360,
@@ -597,7 +664,7 @@ export const GAME_SETTINGS = {
         attackRange: 3.2,
       },
       ai: {
-        ...DEFAULT_ENEMY_AI,
+        maxForce: 12,
         speed: 0.55,
         chaseSpeed: 1.45,
         arriveDeceleration: 3,
@@ -607,11 +674,13 @@ export const GAME_SETTINGS = {
         attackCooldown: 2.2,
         separationRadius: 4.5,
         separationWeight: 1,
+        yawOffset: 0,
         respawnDelaySeconds: 420,
       },
     },
   },
 
+  // Босс Snow_Terrain: настройки ледяного снаряда и дистанции стрельбы.
   snowBoss: {
     projectileUrl: "/models/projectiles/iceberg.glb",
     projectileTargetHeight: 0.85,
@@ -626,6 +695,7 @@ export const GAME_SETTINGS = {
     targetRange: 34,
   },
 
+  // Snow_Terrain: параметры снегопада из системы частиц.
   snowTerrainWeather: {
     emitRate: 850,
     capacity: 4500,
@@ -643,17 +713,25 @@ export const GAME_SETTINGS = {
     updateSpeed: 0.012,
   },
 
-  enemyRoutes: {
-    default: DEFAULT_ENEMY_ROUTE,
-    blocksTrailer: BLOCKS_TRAILER_ENEMY_ROUTE,
-    villageOutskirts: VILLAGE_OUTSKIRTS_ENEMY_ROUTE,
-    snowTerrain: SNOW_TERRAIN_ENEMY_ROUTE,
-    warefall: WAREFALL_ENEMY_ROUTE,
-  },
-
+  // Враги по уровням.
+  // route: точки патруля/спавна на конкретной карте.
+  // groups: какие модели врагов ставить на какие индексы route.
+  // startNodeIndices берут координаты из route по номеру элемента, начиная с 0.
   enemiesByLevel: {
     Blocks_Trailer_Map: {
-      route: "blocksTrailer",
+      // Здесь меняй расстановку скелетов и боссов на Blocks_Trailer_Map.
+      route: [
+        { name: "skeleton_headless_spawn_left", position: new Vector3(-10, 0, 8), pauseSeconds: 2 },
+        { name: "skeleton_headless_patrol_left", position: new Vector3(-5, 0, 13) },
+        { name: "skeleton_headless_spawn_center", position: new Vector3(0, 0, 9), pauseSeconds: 2 },
+        { name: "skeleton_headless_patrol_right", position: new Vector3(5, 0, 13) },
+        { name: "skeleton_headless_spawn_right", position: new Vector3(10, 0, 8), pauseSeconds: 2 },
+        { name: "skeleton_helmed_spawn_left", position: new Vector3(-12, 0, -2), pauseSeconds: 2.5 },
+        { name: "skeleton_helmed_patrol_center", position: new Vector3(0, 0, 2) },
+        { name: "skeleton_helmed_spawn_right", position: new Vector3(12, 0, -2), pauseSeconds: 2.5 },
+        { name: "skeleton_boss_spawn_left", position: new Vector3(-9, 0, -13), pauseSeconds: 4 },
+        { name: "skeleton_boss_spawn_right", position: new Vector3(9, 0, -13), pauseSeconds: 4 },
+      ],
       groups: [
         { model: "skeletonHeadless", baseName: "skeleton_headless", startNodeIndices: [0, 2, 4] },
         { model: "skeletonHelmed", baseName: "skeleton_helmed", startNodeIndices: [5, 7] },
@@ -661,11 +739,35 @@ export const GAME_SETTINGS = {
       ],
     },
     Cave_Scene_Draft: {
-      route: "default",
-      groups: DEFAULT_ENEMY_GROUPS,
+      // Здесь меняй врагов и маршрут на Cave_Scene_Draft.
+      route: [
+        { name: "goblin_spawn_1", position: new Vector3(2, 0, 8), pauseSeconds: 2.5 },
+        { name: "goblin_patrol_1", position: new Vector3(10, 0, 8) },
+        { name: "goblin_spawn_2", position: new Vector3(10, 0, 2), pauseSeconds: 2.5 },
+        { name: "goblin_patrol_2", position: new Vector3(10, 0, -4) },
+        { name: "goblin_spawn_3", position: new Vector3(4, 0, -4), pauseSeconds: 2.5 },
+        { name: "orc_spawn_1", position: new Vector3(-3, 0, -4), pauseSeconds: 2.5 },
+        { name: "orc_patrol_1", position: new Vector3(-3, 0, 1) },
+        { name: "orc_spawn_2", position: new Vector3(-8, 0, 1), pauseSeconds: 2.5 },
+        { name: "center_patrol", position: new Vector3(2, 0, 1) },
+      ],
+      groups: [
+        { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
+        { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
+      ],
     },
     Snow_Terrain: {
-      route: "snowTerrain",
+      // Здесь меняй White_man, Yeti и босса Cold_Planet на Snow_Terrain.
+      route: [
+        { name: "white_man_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
+        { name: "white_man_patrol_left", position: new Vector3(-6, 0, 14) },
+        { name: "white_man_spawn_center", position: new Vector3(0, 0, 13), pauseSeconds: 2 },
+        { name: "white_man_patrol_right", position: new Vector3(6, 0, 14) },
+        { name: "white_man_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
+        { name: "yeti_spawn_left", position: new Vector3(-14, 0, -6), pauseSeconds: 2.5 },
+        { name: "cold_planet_boss_spawn", position: new Vector3(0, 0, -16), pauseSeconds: 4 },
+        { name: "yeti_spawn_right", position: new Vector3(14, 0, -6), pauseSeconds: 2.5 },
+      ],
       groups: [
         { model: "whiteMan", baseName: "white_man", startNodeIndices: [0, 2, 4] },
         { model: "yeti", baseName: "yeti", startNodeIndices: [5, 7] },
@@ -673,11 +775,35 @@ export const GAME_SETTINGS = {
       ],
     },
     Walk_in_the_Woods: {
-      route: "default",
-      groups: DEFAULT_ENEMY_GROUPS,
+      // Здесь меняй врагов и маршрут на Walk_in_the_Woods.
+      route: [
+        { name: "goblin_spawn_1", position: new Vector3(2, 0, 8), pauseSeconds: 2.5 },
+        { name: "goblin_patrol_1", position: new Vector3(10, 0, 8) },
+        { name: "goblin_spawn_2", position: new Vector3(10, 0, 2), pauseSeconds: 2.5 },
+        { name: "goblin_patrol_2", position: new Vector3(10, 0, -4) },
+        { name: "goblin_spawn_3", position: new Vector3(4, 0, -4), pauseSeconds: 2.5 },
+        { name: "orc_spawn_1", position: new Vector3(-3, 0, -4), pauseSeconds: 2.5 },
+        { name: "orc_patrol_1", position: new Vector3(-3, 0, 1) },
+        { name: "orc_spawn_2", position: new Vector3(-8, 0, 1), pauseSeconds: 2.5 },
+        { name: "center_patrol", position: new Vector3(2, 0, 1) },
+      ],
+      groups: [
+        { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
+        { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
+      ],
     },
     Warefall: {
-      route: "warefall",
+      // Здесь меняй Fish, Frog и босса Mako на Warefall.
+      route: [
+        { name: "fish_spawn_left", position: new Vector3(-12, 0, 8), pauseSeconds: 2 },
+        { name: "fish_patrol_left", position: new Vector3(-6, 0, 13) },
+        { name: "fish_spawn_center", position: new Vector3(0, 0, 10), pauseSeconds: 2 },
+        { name: "fish_patrol_right", position: new Vector3(6, 0, 13) },
+        { name: "fish_spawn_right", position: new Vector3(12, 0, 8), pauseSeconds: 2 },
+        { name: "frog_spawn_left", position: new Vector3(-11, 0, -4), pauseSeconds: 2.5 },
+        { name: "mako_boss_spawn", position: new Vector3(0, 0, -14), pauseSeconds: 4 },
+        { name: "frog_spawn_right", position: new Vector3(11, 0, -4), pauseSeconds: 2.5 },
+      ],
       groups: [
         { model: "fish", baseName: "fish", startNodeIndices: [0, 2, 4] },
         { model: "frog", baseName: "frog", startNodeIndices: [5, 7] },
@@ -685,13 +811,30 @@ export const GAME_SETTINGS = {
       ],
     },
     World_Village: {
-      route: "villageOutskirts",
-      groups: DEFAULT_ENEMY_GROUPS,
+      // Здесь меняй врагов вокруг деревни. Порталы и ведьма находятся отдельно выше.
+      route: [
+        { name: "village_far_left_spawn", position: new Vector3(-14, 0, 12), pauseSeconds: 2 },
+        { name: "village_far_left_turn", position: new Vector3(-10, 0, 18) },
+        { name: "village_north_spawn", position: new Vector3(0, 0, 18), pauseSeconds: 2 },
+        { name: "village_far_right_turn", position: new Vector3(10, 0, 18) },
+        { name: "village_far_right_spawn", position: new Vector3(14, 0, 12), pauseSeconds: 2 },
+        { name: "village_orc_right_spawn", position: new Vector3(16, 0, 6), pauseSeconds: 2.5 },
+        { name: "village_back_patrol", position: new Vector3(0, 0, 22) },
+        { name: "village_orc_left_spawn", position: new Vector3(-16, 0, 6), pauseSeconds: 2.5 },
+      ],
+      groups: [
+        { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
+        { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
+      ],
     },
   } satisfies Record<
     LevelKey,
     {
-      route: string;
+      route: ReadonlyArray<{
+        name: string;
+        position: Vector3;
+        pauseSeconds?: number;
+      }>;
       groups: ReadonlyArray<{
         model: string;
         baseName?: string;

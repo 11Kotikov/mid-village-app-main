@@ -21,19 +21,16 @@ export type LevelEnemyPatrolConfig = {
   groups: readonly LevelEnemyGroupConfig[];
 };
 
-type EnemyRouteKey = keyof typeof GAME_SETTINGS.enemyRoutes;
-
 function getLevelEnemyConfig(levelKey: LevelKey): LevelEnemyPatrolConfig {
   const config = GAME_SETTINGS.enemiesByLevel[levelKey];
-  const routeKey = config.route as EnemyRouteKey;
 
   return {
-    route: GAME_SETTINGS.enemyRoutes[routeKey] ?? GAME_SETTINGS.enemyRoutes.default,
+    route: config.route,
     groups: config.groups,
   };
 }
 
-export const ENEMY_PATROL_ROUTE = GAME_SETTINGS.enemyRoutes.default;
+export const ENEMY_PATROL_ROUTE = GAME_SETTINGS.enemiesByLevel.World_Village.route;
 
 export const LEVEL_ENEMY_PATROL_CONFIG = {
   Blocks_Trailer_Map: getLevelEnemyConfig("Blocks_Trailer_Map"),

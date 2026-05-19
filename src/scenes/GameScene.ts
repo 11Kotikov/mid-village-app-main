@@ -1,20 +1,15 @@
 import type { Engine } from "@babylonjs/core/Engines/engine";
 import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { Mesh, MeshBuilder } from "@babylonjs/core/Meshes";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import type { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Ray } from "@babylonjs/core/Culling/ray";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
-import { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
-import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import type { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
 
 import {
   CURRENT_LEVEL_KEY,
@@ -29,7 +24,7 @@ import {
 } from "../assets/paths";
 import { GAME_SETTINGS } from "../config/gameSettings";
 import { loadGLBAsContainer } from "../assets/loaders";
-import { getHierarchyHeight, getHierarchyMinY } from "../assets/measure";
+import { getHierarchyHeight } from "../assets/measure";
 import { Level } from "../world/Level";
 import { Skybox } from "../environment/Skybox";
 import {
@@ -48,22 +43,27 @@ import { EnemySpawner } from "../entities/EnemySpawner";
 import { YukaWorld } from "../ai/YukaWorld";
 import { setupInspectorHotkey } from "../debug/inspectorHotkey";
 import { ClickToMovePlayer } from "../player/ClickToMovePlayer";
+import { GameHud } from "../ui/GameHud";
 
 import { AmbientAudio } from "../audio/AmbientAudio";
 
 import { attachWASDControls } from "./cameraControls";
+import {
+  findAnimationBySuffix,
+  loadSceneObject,
+  playSceneObjectAnimation,
+  type LoadedSceneObject,
+} from "./sceneObjects";
+import { createFireballParticleSystem } from "../effects/FireballEffect";
+import { createPortalLabel } from "../effects/PortalLabel";
 import { PortalParticleSystem } from "../effects/PortalParticleSystem";
+import { createSnowTerrainSnowfall } from "../effects/Snowfall";
 
 type ActivePortal = {
   definition: LevelPortalDefinition;
   position: Vector3;
   effect: PortalParticleSystem;
   labelRoot: TransformNode | null;
-};
-
-type LoadedSceneObject = {
-  container: AssetContainer;
-  root: TransformNode;
 };
 
 type WitchNpc = LoadedSceneObject & {
@@ -126,8 +126,6 @@ const WITCH_MANA_RESTORE_RADIUS = GAME_SETTINGS.witch.manaRestoreRadius;
 const WITCH_MANA_RESTORE_COOLDOWN_SECONDS = GAME_SETTINGS.witch.manaRestoreCooldownSeconds;
 const POTION_PICKUP_RADIUS = GAME_SETTINGS.pickups.potionRadius;
 const POTION_PICKUP_COOLDOWN_SECONDS = GAME_SETTINGS.pickups.potionCooldownSeconds;
-const PORTAL_LABEL_TEXTURE_WIDTH = GAME_SETTINGS.portalLabels.textureWidth;
-const PORTAL_LABEL_TEXTURE_HEIGHT = GAME_SETTINGS.portalLabels.textureHeight;
 const WORLD_VILLAGE_HUB = GAME_SETTINGS.worldVillageHub;
 
 type PlayerRespawnOptions = {
@@ -175,11 +173,7 @@ export class GameScene {
   #portalCooldown: number;
   #isChangingLevel: boolean;
   #currentLevelKey: LevelKey;
-  #hudRoot: HTMLDivElement | null;
-  #healthFill: HTMLDivElement | null;
-  #manaFill: HTMLDivElement | null;
-  #targetFill: HTMLDivElement | null;
-  #hudStatus: HTMLDivElement | null;
+  #hud: GameHud | null;
 
   constructor(engine: Engine, canvas: HTMLCanvasElement) {
     this.#canvas = canvas;
@@ -219,17 +213,13 @@ export class GameScene {
     this.#portalCooldown = 0;
     this.#isChangingLevel = false;
     this.#currentLevelKey = CURRENT_LEVEL_KEY;
-    this.#hudRoot = null;
-    this.#healthFill = null;
-    this.#manaFill = null;
-    this.#targetFill = null;
-    this.#hudStatus = null;
+    this.#hud = null;
 
     new HemisphericLight("light", new Vector3(0, 1, 0), this.#scene);
 
     this.#disposeInspectorHotkey = setupInspectorHotkey(this.#scene);
     this.#disposeFireballHotkey = this.#attachFireballHotkey();
-    this.#createHud();
+    this.#hud = new GameHud(PARTICLES_URLS.fireBall);
   }
 
   get scene(): Scene {
@@ -238,19 +228,19 @@ export class GameScene {
 
   async init() {
     const camera = this.#createCamera();
-    this.#disposeWASDControls = attachWASDControls(
-      camera,
-      this.#scene,
-      GAME_SETTINGS.player.cameraMoveSpeed
-    );
+    this.#disposeWASDControls = attachWASDControls(camera, this.#scene, GAME_SETTINGS.camera);
 
     this.#skybox = new Skybox(this.scene, SKYBOX_URLS.skybox, 1000);
 
     for (const [modelKey, modelConfig] of Object.entries(GAME_SETTINGS.enemyModels)) {
       const enemyContainer = await loadGLBAsContainer(this.#scene, modelConfig.url);
-      const enemyPrefab = new EnemyPrefab(this.#scene, enemyContainer, modelKey, {
-        targetHeight: modelConfig.targetHeight,
-      });
+      const enemyPrefab = new EnemyPrefab(
+        this.#scene,
+        enemyContainer,
+        modelKey,
+        { targetHeight: modelConfig.targetHeight },
+        modelConfig.animations
+      );
 
       this.#enemyPrefabs.set(modelKey, enemyPrefab);
       this.#prefabs.push(enemyPrefab);
@@ -276,16 +266,17 @@ export class GameScene {
   }
 
   #createCamera() {
+    const cameraSettings = GAME_SETTINGS.camera;
     const camera = new ArcRotateCamera(
       "camera",
-      (2 * Math.PI) / 3,
-      Math.PI / 3,
-      60,
-      new Vector3(10, 0, 10),
+      cameraSettings.alpha,
+      cameraSettings.beta,
+      cameraSettings.radius,
+      cameraSettings.target.clone(),
       this.#scene
     );
     camera.attachControl(this.#canvas, true);
-    camera.wheelPrecision = 10;
+    camera.wheelPrecision = cameraSettings.wheelPrecision;
     return camera;
   }
 
@@ -525,69 +516,9 @@ export class GameScene {
         definition,
         position: groundPosition,
         effect,
-        labelRoot: this.#createPortalLabel(definition, visualCenter, visualHeight),
+        labelRoot: createPortalLabel(this.#scene, definition, visualCenter, visualHeight),
       });
     }
-  }
-
-  #createPortalLabel(
-    definition: LevelPortalDefinition,
-    visualCenter: Vector3,
-    visualHeight: number
-  ): TransformNode | null {
-    if (!definition.label) {
-      return null;
-    }
-
-    const labelRoot = new TransformNode(`portal_label_${definition.id}`, this.#scene);
-    labelRoot.position.copyFrom(visualCenter.add(new Vector3(0, visualHeight * 0.55 + 0.35, 0)));
-
-    const texture = new DynamicTexture(
-      `${definition.id}_label_texture`,
-      { width: PORTAL_LABEL_TEXTURE_WIDTH, height: PORTAL_LABEL_TEXTURE_HEIGHT },
-      this.#scene,
-      false
-    );
-    texture.hasAlpha = true;
-
-    const context = texture.getContext() as CanvasRenderingContext2D;
-    context.clearRect(0, 0, PORTAL_LABEL_TEXTURE_WIDTH, PORTAL_LABEL_TEXTURE_HEIGHT);
-    context.fillStyle = "rgba(18, 13, 8, 0.82)";
-    context.fillRect(20, 20, PORTAL_LABEL_TEXTURE_WIDTH - 40, PORTAL_LABEL_TEXTURE_HEIGHT - 40);
-    context.strokeStyle = "rgba(255, 217, 140, 0.95)";
-    context.lineWidth = 10;
-    context.strokeRect(20, 20, PORTAL_LABEL_TEXTURE_WIDTH - 40, PORTAL_LABEL_TEXTURE_HEIGHT - 40);
-    context.font = "700 58px Arial";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillStyle = "#ffe6aa";
-    context.fillText(
-      definition.label,
-      PORTAL_LABEL_TEXTURE_WIDTH / 2,
-      PORTAL_LABEL_TEXTURE_HEIGHT / 2 + 4
-    );
-    texture.update();
-
-    const material = new StandardMaterial(`${definition.id}_label_material`, this.#scene);
-    material.diffuseTexture = texture;
-    material.emissiveColor = new Color3(1, 0.78, 0.38);
-    material.backFaceCulling = false;
-    material.useAlphaFromDiffuseTexture = true;
-
-    const plane = MeshBuilder.CreatePlane(
-      `${definition.id}_label_plane`,
-      {
-        width: GAME_SETTINGS.portalLabels.planeWidth,
-        height: GAME_SETTINGS.portalLabels.planeHeight,
-      },
-      this.#scene
-    );
-    plane.parent = labelRoot;
-    plane.material = material;
-    plane.billboardMode = Mesh.BILLBOARDMODE_Y;
-    plane.isPickable = false;
-
-    return labelRoot;
   }
 
   async #createLevelSceneObjects(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
@@ -629,10 +560,10 @@ export class GameScene {
     });
     const witch: WitchNpc = {
       ...witchObject,
-      idleAnimation: this.#findAnimationBySuffix(witchObject.container.animationGroups, [
+      idleAnimation: findAnimationBySuffix(witchObject.container.animationGroups, [
         "Idle_Neutral",
       ]),
-      waveAnimation: this.#findAnimationBySuffix(witchObject.container.animationGroups, ["Wave"]),
+      waveAnimation: findAnimationBySuffix(witchObject.container.animationGroups, ["Wave"]),
       waveTimer: WITCH_WAVE_INTERVAL_SECONDS,
     };
     this.#witch = witch;
@@ -684,9 +615,9 @@ export class GameScene {
       targetHeight: npcs.king.targetHeight,
       rotationY: npcs.king.rotationY,
     });
-    this.#playSceneObjectAnimation(
+    playSceneObjectAnimation(
       king,
-      this.#findAnimationBySuffix(king.container.animationGroups, ["Idle_Neutral", "Idle"]),
+      findAnimationBySuffix(king.container.animationGroups, ["Idle_Neutral", "Idle"]),
       true
     );
 
@@ -697,9 +628,9 @@ export class GameScene {
       targetHeight: npcs.knight.targetHeight,
       rotationY: npcs.knight.rotationY,
     });
-    this.#playSceneObjectAnimation(
+    playSceneObjectAnimation(
       knight,
-      this.#findAnimationBySuffix(knight.container.animationGroups, ["Idle", "ArmatureAction"]),
+      findAnimationBySuffix(knight.container.animationGroups, ["Idle", "ArmatureAction"]),
       true
     );
 
@@ -710,12 +641,12 @@ export class GameScene {
         groundMeshes,
         targetHeight: npcs.knight2TargetHeight,
       });
-      const walkAnimation = this.#findAnimationBySuffix(knight2.container.animationGroups, [
+      const walkAnimation = findAnimationBySuffix(knight2.container.animationGroups, [
         "Walk_Formal_Loop",
         "Walk",
         "Run",
       ]);
-      this.#playSceneObjectAnimation(knight2, walkAnimation, true);
+      playSceneObjectAnimation(knight2, walkAnimation, true);
 
       const grounded = this.#getGroundedPosition(knight2.root.position, groundMeshes);
       this.#patrolNpcs.push({
@@ -734,31 +665,7 @@ export class GameScene {
       return;
     }
 
-    const weather = GAME_SETTINGS.snowTerrainWeather;
-    const snowfall = new ParticleSystem("snow_terrain_snowfall", weather.capacity, this.#scene);
-
-    snowfall.particleTexture = new Texture(PARTICLES_URLS.snow, this.#scene);
-    snowfall.emitter = Vector3.Zero();
-    snowfall.minEmitBox = weather.minEmitBox;
-    snowfall.maxEmitBox = weather.maxEmitBox;
-    snowfall.color1 = new Color4(1, 1, 1, 0.95);
-    snowfall.color2 = new Color4(0.82, 0.9, 1, 0.75);
-    snowfall.colorDead = new Color4(1, 1, 1, 0);
-    snowfall.minSize = weather.minSize;
-    snowfall.maxSize = weather.maxSize;
-    snowfall.minLifeTime = weather.minLifeTime;
-    snowfall.maxLifeTime = weather.maxLifeTime;
-    snowfall.emitRate = weather.emitRate;
-    snowfall.blendMode = ParticleSystem.BLENDMODE_STANDARD;
-    snowfall.gravity = weather.gravity;
-    snowfall.direction1 = weather.direction1;
-    snowfall.direction2 = weather.direction2;
-    snowfall.minEmitPower = weather.minEmitPower;
-    snowfall.maxEmitPower = weather.maxEmitPower;
-    snowfall.updateSpeed = weather.updateSpeed;
-    snowfall.start();
-
-    this.#snowfall = snowfall;
+    this.#snowfall = createSnowTerrainSnowfall(this.#scene);
   }
 
   async #loadSceneObject(
@@ -772,71 +679,13 @@ export class GameScene {
       rotationY?: number;
     }
   ): Promise<LoadedSceneObject> {
-    const container = await loadGLBAsContainer(this.#scene, url);
-    container.addAllToScene();
-
-    const root = new TransformNode(options.name, this.#scene);
-    for (const node of container.rootNodes) {
-      node.parent = root;
-    }
-
-    root.position.copyFrom(this.#getGroundedPosition(options.position, options.groundMeshes));
-    root.rotation.y = options.rotationY ?? 0;
-
-    if (options.targetHeight != null) {
-      const rawHeight = getHierarchyHeight(root);
-      if (rawHeight > 0) {
-        root.scaling.setAll(options.targetHeight / rawHeight);
-      }
-    } else if (options.scale != null) {
-      root.scaling.setAll(options.scale);
-    }
-
-    const minY = getHierarchyMinY(root);
-    root.position.y += root.position.y - minY;
-
-    const object = { container, root };
+    const object = await loadSceneObject(this.#scene, url, {
+      ...options,
+      getGroundedPosition: (position, groundMeshes) =>
+        this.#getGroundedPosition(position, groundMeshes),
+    });
     this.#activeSceneObjects.push(object);
     return object;
-  }
-
-  #findAnimationBySuffix(animationGroups: AnimationGroup[], suffixes: string[]): AnimationGroup | null {
-    const normalized = suffixes.map((suffix) => suffix.toLowerCase());
-
-    for (const suffix of normalized) {
-      for (const group of animationGroups) {
-        const raw = (group.name ?? "").toLowerCase();
-        const tail = raw.split("|").pop() ?? raw;
-
-        if (tail === suffix || raw.endsWith(`|${suffix}`) || raw.endsWith(suffix)) {
-          return group;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  #playSceneObjectAnimation(
-    object: LoadedSceneObject,
-    animation: AnimationGroup | null,
-    loop: boolean
-  ) {
-    if (!animation) {
-      return;
-    }
-
-    for (const group of object.container.animationGroups) {
-      if (group === animation) {
-        continue;
-      }
-
-      group.stop();
-      group.reset();
-    }
-
-    animation.reset();
-    animation.start(loop);
   }
 
   #stopWitchAnimations() {
@@ -960,7 +809,7 @@ export class GameScene {
       }
 
       if (npc.walkAnimation && !npc.walkAnimation.isPlaying) {
-        this.#playSceneObjectAnimation(npc, npc.walkAnimation, true);
+        playSceneObjectAnimation(npc, npc.walkAnimation, true);
       }
     }
   }
@@ -1081,7 +930,7 @@ export class GameScene {
     const projectile: FireballProjectile = {
       position: spawnPosition,
       velocity: direction.scale(PLAYER_FIREBALL_SPEED),
-      particleSystem: this.#createFireballParticleSystem(spawnPosition),
+      particleSystem: createFireballParticleSystem(this.#scene, spawnPosition),
       lifeLeft: PLAYER_FIREBALL_LIFETIME_SECONDS,
     };
 
@@ -1089,31 +938,6 @@ export class GameScene {
     this.#hudStatusText("Fireball");
     this.#updateHud();
     return true;
-  }
-
-  #createFireballParticleSystem(position: Vector3): ParticleSystem {
-    const particleSystem = new ParticleSystem("player_fireball", 220, this.#scene);
-    particleSystem.particleTexture = new Texture(PARTICLES_URLS.fireBall, this.#scene);
-    particleSystem.emitter = position;
-    particleSystem.minEmitBox.set(-0.08, -0.08, -0.08);
-    particleSystem.maxEmitBox.set(0.08, 0.08, 0.08);
-    particleSystem.color1 = new Color4(1, 0.45, 0.05, 1);
-    particleSystem.color2 = new Color4(1, 0.05, 0.01, 1);
-    particleSystem.colorDead = new Color4(0.2, 0.02, 0, 0);
-    particleSystem.minSize = 0.35;
-    particleSystem.maxSize = 0.8;
-    particleSystem.minLifeTime = 0.12;
-    particleSystem.maxLifeTime = 0.35;
-    particleSystem.emitRate = 380;
-    particleSystem.blendMode = ParticleSystem.BLENDMODE_ADD;
-    particleSystem.gravity = Vector3.Zero();
-    particleSystem.direction1 = new Vector3(-0.25, -0.1, -0.25);
-    particleSystem.direction2 = new Vector3(0.25, 0.1, 0.25);
-    particleSystem.minEmitPower = 0.2;
-    particleSystem.maxEmitPower = 1.1;
-    particleSystem.updateSpeed = 0.01;
-    particleSystem.start();
-    return particleSystem;
   }
 
   #updateFireballs(dt: number) {
@@ -1592,126 +1416,21 @@ export class GameScene {
     this.#scene.dispose();
   }
 
-  #createHud() {
-    const hudRoot = document.createElement("div");
-    hudRoot.className = "game-hud";
-
-    const playerPanel = document.createElement("div");
-    playerPanel.className = "hud-panel";
-
-    const playerTitle = document.createElement("div");
-    playerTitle.className = "hud-title";
-    playerTitle.textContent = "Player";
-
-    const healthBar = this.#createHudBar("Health", "hud-fill-health");
-    const manaBar = this.#createHudBar("Mana", "hud-fill-mana");
-    this.#healthFill = healthBar.fill;
-    this.#manaFill = manaBar.fill;
-
-    playerPanel.append(playerTitle, healthBar.root, manaBar.root);
-
-    const targetPanel = document.createElement("div");
-    targetPanel.className = "hud-panel";
-
-    const targetTitle = document.createElement("div");
-    targetTitle.className = "hud-title";
-    targetTitle.textContent = "Target";
-
-    const targetBar = this.#createHudBar("Health", "hud-fill-target");
-    this.#targetFill = targetBar.fill;
-
-    this.#hudStatus = document.createElement("div");
-    this.#hudStatus.className = "hud-status";
-    this.#hudStatus.textContent = "Click an enemy to attack";
-
-    targetPanel.append(targetTitle, targetBar.root, this.#hudStatus);
-    hudRoot.append(playerPanel, targetPanel, this.#createSkillBar());
-    document.body.append(hudRoot);
-    this.#hudRoot = hudRoot;
-  }
-
-  #createSkillBar() {
-    const skillBar = document.createElement("div");
-    skillBar.className = "skill-bar";
-
-    for (let i = 0; i < 4; i++) {
-      const slot = document.createElement("div");
-      slot.className = i === 0 ? "skill-slot skill-slot-active" : "skill-slot";
-
-      if (i === 0) {
-        const image = document.createElement("img");
-        image.className = "skill-icon";
-        image.src = PARTICLES_URLS.fireBall;
-        image.alt = "Fireball";
-
-        const key = document.createElement("span");
-        key.className = "skill-key";
-        key.textContent = "1";
-
-        slot.append(image, key);
-      }
-
-      skillBar.append(slot);
-    }
-
-    return skillBar;
-  }
-
-  #createHudBar(label: string, fillClassName: string) {
-    const root = document.createElement("div");
-    root.className = "hud-bar";
-
-    const text = document.createElement("span");
-    text.textContent = label;
-
-    const track = document.createElement("div");
-    track.className = "hud-track";
-
-    const fill = document.createElement("div");
-    fill.className = `hud-fill ${fillClassName}`;
-
-    track.append(fill);
-    root.append(text, track);
-
-    return { root, fill };
-  }
-
   #updateHud() {
-    if (!this.#player || !this.#healthFill || !this.#manaFill || !this.#targetFill) {
-      return;
-    }
-
-    this.#setFill(this.#healthFill, this.#player.stats.health, this.#player.stats.maxHealth);
-    this.#setFill(this.#manaFill, this.#player.stats.mana, this.#player.stats.maxMana);
-
-    if (this.#lastTarget && !this.#lastTarget.isDead) {
-      this.#setFill(this.#targetFill, this.#lastTarget.stats.health, this.#lastTarget.stats.maxHealth);
-    } else {
-      this.#setFill(this.#targetFill, 0, 1);
-    }
-
-    if (this.#player.isDead && this.#playerRespawnTimeLeft == null && !this.#isRespawningPlayer) {
-      this.#hudStatusText("You died");
-    }
-  }
-
-  #setFill(fill: HTMLDivElement, value: number, maxValue: number) {
-    const percent = maxValue <= 0 ? 0 : Math.max(0, Math.min(1, value / maxValue));
-    fill.style.width = `${percent * 100}%`;
+    this.#hud?.update({
+      player: this.#player,
+      target: this.#lastTarget,
+      playerRespawnTimeLeft: this.#playerRespawnTimeLeft,
+      isRespawningPlayer: this.#isRespawningPlayer,
+    });
   }
 
   #hudStatusText(text: string) {
-    if (this.#hudStatus) {
-      this.#hudStatus.textContent = text;
-    }
+    this.#hud?.setStatus(text);
   }
 
   #disposeHud() {
-    this.#hudRoot?.remove();
-    this.#hudRoot = null;
-    this.#healthFill = null;
-    this.#manaFill = null;
-    this.#targetFill = null;
-    this.#hudStatus = null;
+    this.#hud?.dispose();
+    this.#hud = null;
   }
 }

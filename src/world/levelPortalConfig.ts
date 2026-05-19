@@ -22,9 +22,9 @@ type LevelSetup = {
 function withPortalDefaults(definition: LevelPortalDefinition): LevelPortalDefinition {
   return {
     ...definition,
-    radius: definition.radius ?? GAME_SETTINGS.portalDefaults.radius,
-    arrivalOffset: definition.arrivalOffset ?? GAME_SETTINGS.portalDefaults.arrivalOffset,
-    visualHeight: definition.visualHeight ?? GAME_SETTINGS.portalDefaults.visualHeight,
+    radius: definition.radius ?? GAME_SETTINGS.portalCommon.radius,
+    arrivalOffset: definition.arrivalOffset ?? GAME_SETTINGS.portalCommon.arrivalOffset,
+    visualHeight: definition.visualHeight ?? GAME_SETTINGS.portalCommon.visualHeight,
   };
 }
 
