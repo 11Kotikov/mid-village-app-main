@@ -5,7 +5,7 @@ import type { LevelKey } from "../assets/paths";
 
 export const GAME_SETTINGS = {
   // Стартовая карта после запуска игры.
-  startLevel: "World_Village" as LevelKey,
+  startLevel: "Blocks_Trailer_Map" as LevelKey,
 
   // Игрок: размер, камера, здоровье/мана, атака мечом, регенерация и fireball.
   player: {
@@ -66,7 +66,7 @@ export const GAME_SETTINGS = {
     lowerBetaLimit: 0.25,
     upperBetaLimit: Math.PI * 0.48,
     // Скорость движения камеры по W/A/S/D. Увеличь число, если камера должна двигаться быстрее.
-    moveSpeed: 3,
+    moveSpeed: 2,
     // Чувствительность вращения камеры при зажатом колесе мыши.
     middleMouseRotateSpeed: 0.005,
     // Кнопки, которые оставляет стандартному Babylon-управлению: 0 - левая, 2 - правая.
@@ -190,7 +190,7 @@ export const GAME_SETTINGS = {
   levels: {
     Blocks_Trailer_Map: {
       scale: 33,
-      startPosition: new Vector3(0, 0, -6),
+      startPosition: new Vector3(100, 0, -6),
     },
     Cave_Scene_Draft: {
       scale: 60,
@@ -783,7 +783,7 @@ export const GAME_SETTINGS = {
     Blocks_Trailer_Map: {
       // Здесь меняй расстановку скелетов и боссов на Blocks_Trailer_Map.
       route: [
-        { name: "skeleton_headless_spawn_left", position: new Vector3(-10, 0, 8), pauseSeconds: 2 },
+        { name: "skeleton_headless_spawn_left", position: new Vector3(-20, 0, 8), pauseSeconds: 2 },
         { name: "skeleton_headless_patrol_left", position: new Vector3(-5, 0, 13) },
         { name: "skeleton_headless_spawn_center", position: new Vector3(0, 0, 9), pauseSeconds: 2 },
         { name: "skeleton_headless_patrol_right", position: new Vector3(5, 0, 13) },
