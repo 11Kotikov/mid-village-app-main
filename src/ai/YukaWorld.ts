@@ -4,7 +4,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Ray } from "@babylonjs/core/Culling/ray";
 
 import * as YUKA from "yuka";
-import { Enemy } from "../entities/Enemy";
+import { CombatActor } from "../entities/CombatActor";
 
 type PatrolRouteNode = {
   name?: string;
@@ -15,7 +15,7 @@ type PatrolRouteNode = {
 type PatrolEnemyOptions = {
   groundMeshes: AbstractMesh[];
   route: readonly PatrolRouteNode[];
-  player?: Enemy;
+  player?: CombatActor;
   respawnPosition?: Vector3;
   respawnDelaySeconds?: number;
 
@@ -40,12 +40,12 @@ type PatrolEnemyOptions = {
 type AgentMode = "patrol" | "chase" | "return";
 
 type AgentEntry = {
-  enemy: Enemy;
+  enemy: CombatActor;
   vehicle: YUKA.Vehicle;
   arriveBehavior: YUKA.ArriveBehavior;
   groundSet: Set<AbstractMesh>;
   route: readonly PatrolRouteNode[];
-  player: Enemy | null;
+  player: CombatActor | null;
   mode: AgentMode;
   spawnPosition: Vector3;
   respawnNodeIndex: number;
@@ -80,7 +80,7 @@ export class YukaWorld {
     this.#agents = [];
   }
 
-  addPatrolEnemy(enemy: Enemy, opts: PatrolEnemyOptions) {
+  addPatrolEnemy(enemy: CombatActor, opts: PatrolEnemyOptions) {
     if (opts.route.length === 0) {
       return;
     }
@@ -332,7 +332,7 @@ export class YukaWorld {
     this.#playWalk(agent.enemy);
   }
 
-  #tryAttack(agent: AgentEntry, player: Enemy) {
+  #tryAttack(agent: AgentEntry, player: CombatActor) {
     if (agent.attackCooldownLeft > 0) {
       return;
     }
@@ -382,7 +382,7 @@ export class YukaWorld {
     this.#moveToNextNode(agent);
   }
 
-  #faceTarget(enemy: Enemy, target: Vector3, yawOffset: number) {
+  #faceTarget(enemy: CombatActor, target: Vector3, yawOffset: number) {
     const dx = target.x - enemy.root.position.x;
     const dz = target.z - enemy.root.position.z;
 
@@ -409,19 +409,19 @@ export class YukaWorld {
     }
   }
 
-  #playWalk(enemy: Enemy) {
+  #playWalk(enemy: CombatActor) {
     if (!enemy.playWalk(true)) {
       enemy.playIdle(true);
     }
   }
 
-  #playRun(enemy: Enemy) {
+  #playRun(enemy: CombatActor) {
     if (!enemy.playRun(true) && !enemy.playWalk(true)) {
       enemy.playIdle(true);
     }
   }
 
-  #playIdle(enemy: Enemy) {
+  #playIdle(enemy: CombatActor) {
     if (!enemy.playIdle(true)) {
       enemy.playWalk(true);
     }

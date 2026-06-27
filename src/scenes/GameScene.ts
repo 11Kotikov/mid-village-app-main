@@ -15,9 +15,6 @@ import {
   CURRENT_LEVEL_KEY,
   LEVEL_URLS,
   PLAYER_URLS,
-  NPC_URLS,
-  POTION_URLS,
-  PROP_URLS,
   PARTICLES_URLS,
   SKYBOX_URLS,
   type LevelKey,
@@ -37,8 +34,8 @@ import {
   LEVEL_SETUP,
   type LevelPortalDefinition,
 } from "../world/levelPortalConfig";
-import { Enemy } from "../entities/Enemy";
-import { EnemyPrefab } from "../entities/EnemyPrefab";
+import { CombatActor } from "../entities/CombatActor";
+import { ActorPrefab } from "../entities/ActorPrefab";
 import { EnemySpawner } from "../entities/EnemySpawner";
 import { YukaWorld } from "../ai/YukaWorld";
 import { setupInspectorHotkey } from "../debug/inspectorHotkey";
@@ -48,52 +45,10 @@ import { GameHud } from "../ui/GameHud";
 import { AmbientAudio } from "../audio/AmbientAudio";
 
 import { attachWASDControls } from "./cameraControls";
-import {
-  findAnimationBySuffix,
-  loadSceneObject,
-  playSceneObjectAnimation,
-  type LoadedSceneObject,
-} from "./sceneObjects";
+import { LevelSceneObjectSystem } from "./LevelSceneObjectSystem";
+import { PortalSystem } from "./PortalSystem";
 import { createFireballParticleSystem } from "../effects/FireballEffect";
-import { createEvilBookGlow } from "../effects/BookGlow";
-import { createPortalLabel } from "../effects/PortalLabel";
-import { PortalParticleSystem } from "../effects/PortalParticleSystem";
 import { createSnowTerrainSnowfall } from "../effects/Snowfall";
-
-type ActivePortal = {
-  definition: LevelPortalDefinition;
-  position: Vector3;
-  effect: PortalParticleSystem;
-  labelRoot: TransformNode | null;
-};
-
-type WitchNpc = LoadedSceneObject & {
-  idleAnimation: AnimationGroup | null;
-  waveAnimation: AnimationGroup | null;
-  waveTimer: number;
-};
-
-type PotionPickup = LoadedSceneObject & {
-  kind: "health" | "mana";
-  radius: number;
-  cooldownLeft: number;
-};
-
-type PatrolNpc = LoadedSceneObject & {
-  route: Vector3[];
-  currentRouteIndex: number;
-  speed: number;
-  groundOffsetY: number;
-  walkAnimation: AnimationGroup | null;
-};
-
-type FloatingSceneObject = LoadedSceneObject & {
-  baseY: number;
-  elapsed: number;
-  floatAmplitude: number;
-  floatSpeed: number;
-  particleSystem: ParticleSystem | null;
-};
 
 type FireballProjectile = {
   position: Vector3;
@@ -130,12 +85,6 @@ const PLAYER_FIREBALL_CAST_ANIMATION_SECONDS = GAME_SETTINGS.player.fireball.cas
 const PLAYER_FIREBALL_TARGET_RANGE = GAME_SETTINGS.player.fireball.targetRange;
 const PLAYER_FIREBALL_SPAWN_HEIGHT = GAME_SETTINGS.player.fireball.spawnHeight;
 const PLAYER_FIREBALL_SPAWN_FORWARD_OFFSET = GAME_SETTINGS.player.fireball.spawnForwardOffset;
-const WITCH_WAVE_INTERVAL_SECONDS = GAME_SETTINGS.witch.waveIntervalSeconds;
-const WITCH_MANA_RESTORE_RADIUS = GAME_SETTINGS.witch.manaRestoreRadius;
-const WITCH_MANA_RESTORE_COOLDOWN_SECONDS = GAME_SETTINGS.witch.manaRestoreCooldownSeconds;
-const POTION_PICKUP_RADIUS = GAME_SETTINGS.pickups.potionRadius;
-const POTION_PICKUP_COOLDOWN_SECONDS = GAME_SETTINGS.pickups.potionCooldownSeconds;
-const WORLD_VILLAGE_HUB = GAME_SETTINGS.worldVillageHub;
 
 type PlayerRespawnOptions = {
   position: Vector3;
@@ -147,36 +96,31 @@ export class GameScene {
   #scene: Scene;
   #canvas: HTMLCanvasElement;
   #spawner: EnemySpawner | null;
-  #prefabs: EnemyPrefab[];
-  #enemyPrefabs: Map<string, EnemyPrefab>;
-  #playerPrefab: EnemyPrefab | null;
+  #prefabs: ActorPrefab[];
+  #enemyPrefabs: Map<string, ActorPrefab>;
+  #playerPrefab: ActorPrefab | null;
   #bossProjectileContainer: AssetContainer | null;
   #level: Level | null;
   #groundMeshes: AbstractMesh[];
   #skybox: Skybox | null = null;
   #ai: YukaWorld | null;
-  #player: Enemy | null;
+  #player: CombatActor | null;
   #playerController: ClickToMovePlayer | null;
   #audio: AmbientAudio | null;
   #disposeInspectorHotkey: (() => void) | null;
   #disposeWASDControls: (() => void) | null;
   #disposeFireballHotkey: (() => void) | null;
-  #activePortals: ActivePortal[];
-  #activeSceneObjects: LoadedSceneObject[];
-  #floatingSceneObjects: FloatingSceneObject[];
-  #patrolNpcs: PatrolNpc[];
-  #witch: WitchNpc | null;
-  #potionPickups: PotionPickup[];
+  #portals: PortalSystem;
+  #levelObjects: LevelSceneObjectSystem;
   #fireballs: FireballProjectile[];
   #bossProjectiles: BossProjectile[];
   #snowfall: ParticleSystem | null;
-  #snowBoss: Enemy | null;
+  #snowBoss: CombatActor | null;
   #snowBossShootCooldown: number;
-  #combatEnemies: Enemy[];
-  #lastTarget: Enemy | null;
+  #combatEnemies: CombatActor[];
+  #lastTarget: CombatActor | null;
   #attackCooldown: number;
   #fireballCooldown: number;
-  #witchManaRestoreCooldown: number;
   #playerCastAnimationTimeLeft: number;
   #playerRespawnTimeLeft: number | null;
   #isRespawningPlayer: boolean;
@@ -202,12 +146,20 @@ export class GameScene {
     this.#disposeInspectorHotkey = null;
     this.#disposeWASDControls = null;
     this.#disposeFireballHotkey = null;
-    this.#activePortals = [];
-    this.#activeSceneObjects = [];
-    this.#floatingSceneObjects = [];
-    this.#patrolNpcs = [];
-    this.#witch = null;
-    this.#potionPickups = [];
+    this.#portals = new PortalSystem(this.#scene, {
+      getGroundedPosition: (position, groundMeshes) =>
+        this.#getGroundedPosition(position, groundMeshes),
+      onPortalEntered: (portal) => {
+        void this.#changeLevel(portal);
+      },
+    });
+    this.#levelObjects = new LevelSceneObjectSystem(this.#scene, {
+      getGroundedPosition: (position, groundMeshes) =>
+        this.#getGroundedPosition(position, groundMeshes),
+      pickGroundAt: (position, groundMeshes) => this.#pickGroundAt(position, groundMeshes),
+      onStatusText: (text) => this.#hudStatusText(text),
+      onHudChanged: () => this.#updateHud(),
+    });
     this.#fireballs = [];
     this.#bossProjectiles = [];
     this.#snowfall = null;
@@ -217,7 +169,6 @@ export class GameScene {
     this.#lastTarget = null;
     this.#attackCooldown = 0;
     this.#fireballCooldown = 0;
-    this.#witchManaRestoreCooldown = 0;
     this.#playerCastAnimationTimeLeft = 0;
     this.#playerRespawnTimeLeft = null;
     this.#isRespawningPlayer = false;
@@ -245,7 +196,7 @@ export class GameScene {
 
     for (const [modelKey, modelConfig] of Object.entries(GAME_SETTINGS.enemyModels)) {
       const enemyContainer = await loadGLBAsContainer(this.#scene, modelConfig.url);
-      const enemyPrefab = new EnemyPrefab(
+      const enemyPrefab = new ActorPrefab(
         this.#scene,
         enemyContainer,
         modelKey,
@@ -264,7 +215,7 @@ export class GameScene {
 
     const playerContainer = await loadGLBAsContainer(this.#scene, PLAYER_URLS.hoodedAdventurer);
 
-    this.#playerPrefab = new EnemyPrefab(this.#scene, playerContainer, "player", {
+    this.#playerPrefab = new ActorPrefab(this.#scene, playerContainer, "player", {
       targetHeight: GAME_SETTINGS.player.targetHeight,
     });
 
@@ -330,8 +281,8 @@ export class GameScene {
     this.#playerController = this.#createPlayerController(this.#groundMeshes);
 
     this.#spawnLevelActors(levelKey, this.#groundMeshes);
-    this.#createPortals(levelKey, this.#groundMeshes);
-    await this.#createLevelSceneObjects(levelKey, this.#groundMeshes);
+    this.#portals.createForLevel(levelKey, this.#groundMeshes);
+    await this.#levelObjects.createForLevel(levelKey, this.#groundMeshes);
     this.#createLevelWeather(levelKey);
     this.#centerCameraOnPlayer();
     this.#currentLevelKey = levelKey;
@@ -504,261 +455,12 @@ export class GameScene {
     }
   }
 
-  #createPortals(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
-    for (const definition of LEVEL_PORTALS[levelKey]) {
-      const radius = definition.radius ?? 2.4;
-      const visualHeight = definition.visualHeight ?? 3;
-      const groundPosition = this.#getGroundedPosition(definition.position, groundMeshes);
-      const visualCenter = groundPosition.add(new Vector3(0, visualHeight, 0));
-      const effect = new PortalParticleSystem(this.scene, {
-        center: visualCenter,
-        orbitRadius: radius * 0.8,
-        angularSpeed: 2,
-        emitRate: 1000,
-        maxLifeTime: 8,
-        minSize: 0.05,
-        maxSize: 0.1,
-        useRectEmitter: true,
-        rectWidth: radius * 1.6,
-        rectHeight: visualHeight,
-        color1: definition.particleColors?.color1,
-        color2: definition.particleColors?.color2,
-        colorDead: definition.particleColors?.colorDead,
-      });
-
-      this.#activePortals.push({
-        definition,
-        position: groundPosition,
-        effect,
-        labelRoot: createPortalLabel(this.#scene, definition, visualCenter, visualHeight),
-      });
-    }
-  }
-
-  async #createLevelSceneObjects(levelKey: LevelKey, groundMeshes: AbstractMesh[]) {
-    if (levelKey === "Blocks_Trailer_Map") {
-      const cathedral = GAME_SETTINGS.blocksTrailerProps.cathedral;
-      await this.#loadSceneObject(PROP_URLS.cathedral, {
-        name: "blocks_trailer_cathedral",
-        position: cathedral.position,
-        groundMeshes,
-        targetHeight: cathedral.targetHeight,
-        rotationY: cathedral.rotationY,
-      });
-      await this.#createBlocksTrailerCastleNpcs(groundMeshes);
-      return;
-    }
-
-    if (levelKey === "Cave_Scene_Draft") {
-      const stable = GAME_SETTINGS.caveSceneDraftProps.fantasyStable;
-      await this.#loadSceneObject(PROP_URLS.fantasyStable, {
-        name: "cave_fantasy_stable",
-        position: stable.position,
-        groundMeshes,
-        targetHeight: stable.targetHeight,
-        rotationY: stable.rotationY,
-      });
-      return;
-    }
-
-    if (levelKey === "Dark_Stage") {
-      await this.#createDarkStageObjects(groundMeshes);
-      return;
-    }
-
-    if (levelKey !== "World_Village") {
-      return;
-    }
-
-    const witchObject = await this.#loadSceneObject(NPC_URLS.witch, {
-      name: "witch_npc",
-      position: WORLD_VILLAGE_HUB.witch,
-      groundMeshes,
-      targetHeight: GAME_SETTINGS.witch.targetHeight,
-      rotationY: Math.PI,
-    });
-    const witch: WitchNpc = {
-      ...witchObject,
-      idleAnimation: findAnimationBySuffix(witchObject.container.animationGroups, [
-        "Idle_Neutral",
-      ]),
-      waveAnimation: findAnimationBySuffix(witchObject.container.animationGroups, ["Wave"]),
-      waveTimer: WITCH_WAVE_INTERVAL_SECONDS,
-    };
-    this.#witch = witch;
-    this.#playWitchIdle();
-
-    const healthPotion = await this.#loadSceneObject(POTION_URLS.health, {
-      name: "health_potion_pickup",
-      position: WORLD_VILLAGE_HUB.healthPotion,
-      groundMeshes,
-      targetHeight: GAME_SETTINGS.pickups.potionTargetHeight,
-    });
-    const manaPotion = await this.#loadSceneObject(POTION_URLS.mana, {
-      name: "mana_potion_pickup",
-      position: WORLD_VILLAGE_HUB.manaPotion,
-      groundMeshes,
-      targetHeight: GAME_SETTINGS.pickups.potionTargetHeight,
-    });
-    await this.#loadSceneObject(PROP_URLS.magicCauldron, {
-      name: "magic_cauldron",
-      position: WORLD_VILLAGE_HUB.cauldron,
-      groundMeshes,
-      targetHeight: 1.45,
-      rotationY: Math.PI,
-    });
-
-    this.#potionPickups.push(
-      {
-        ...healthPotion,
-        kind: "health",
-        radius: POTION_PICKUP_RADIUS,
-        cooldownLeft: 0,
-      },
-      {
-        ...manaPotion,
-        kind: "mana",
-        radius: POTION_PICKUP_RADIUS,
-        cooldownLeft: 0,
-      }
-    );
-  }
-
-  async #createDarkStageObjects(groundMeshes: AbstractMesh[]) {
-    const bookSettings = GAME_SETTINGS.darkStageProps.evilBook;
-    const book = await this.#loadSceneObject(PROP_URLS.evilBook, {
-      name: "dark_stage_evil_book",
-      position: bookSettings.position,
-      groundMeshes,
-      targetHeight: bookSettings.targetHeight,
-      rotationY: bookSettings.rotationY,
-    });
-
-    book.root.position.y += bookSettings.hoverHeight;
-
-    this.#floatingSceneObjects.push({
-      ...book,
-      baseY: book.root.position.y,
-      elapsed: 0,
-      floatAmplitude: bookSettings.floatAmplitude,
-      floatSpeed: bookSettings.floatSpeed,
-      particleSystem: createEvilBookGlow(this.#scene, book.root, bookSettings.glow),
-    });
-  }
-
-  async #createBlocksTrailerCastleNpcs(groundMeshes: AbstractMesh[]) {
-    const npcs = GAME_SETTINGS.blocksTrailerProps.castleNpcs;
-
-    const king = await this.#loadSceneObject(NPC_URLS.king, {
-      name: "blocks_trailer_king",
-      position: npcs.king.position,
-      groundMeshes,
-      targetHeight: npcs.king.targetHeight,
-      rotationY: npcs.king.rotationY,
-    });
-    playSceneObjectAnimation(
-      king,
-      findAnimationBySuffix(king.container.animationGroups, ["Idle_Neutral", "Idle"]),
-      true
-    );
-
-    const knight = await this.#loadSceneObject(NPC_URLS.knight, {
-      name: "blocks_trailer_knight",
-      position: npcs.knight.position,
-      groundMeshes,
-      targetHeight: npcs.knight.targetHeight,
-      rotationY: npcs.knight.rotationY,
-    });
-    playSceneObjectAnimation(
-      knight,
-      findAnimationBySuffix(knight.container.animationGroups, ["Idle", "ArmatureAction"]),
-      true
-    );
-
-    for (const [index, patrol] of npcs.knight2Patrols.entries()) {
-      const knight2 = await this.#loadSceneObject(NPC_URLS.knight2, {
-        name: `blocks_trailer_knight2_patrol_${index + 1}`,
-        position: patrol.startPosition,
-        groundMeshes,
-        targetHeight: npcs.knight2TargetHeight,
-      });
-      const walkAnimation = findAnimationBySuffix(knight2.container.animationGroups, [
-        "Walk_Formal_Loop",
-        "Walk",
-        "Run",
-      ]);
-      playSceneObjectAnimation(knight2, walkAnimation, true);
-
-      const grounded = this.#getGroundedPosition(knight2.root.position, groundMeshes);
-      this.#patrolNpcs.push({
-        ...knight2,
-        route: patrol.route.map((point) => this.#getGroundedPosition(point, groundMeshes)),
-        currentRouteIndex: 0,
-        speed: npcs.knight2Speed,
-        groundOffsetY: knight2.root.position.y - grounded.y,
-        walkAnimation,
-      });
-    }
-  }
-
   #createLevelWeather(levelKey: LevelKey) {
     if (levelKey !== "Snow_Terrain") {
       return;
     }
 
     this.#snowfall = createSnowTerrainSnowfall(this.#scene);
-  }
-
-  async #loadSceneObject(
-    url: string,
-    options: {
-      name: string;
-      position: Vector3;
-      groundMeshes: AbstractMesh[];
-      targetHeight?: number;
-      scale?: number;
-      rotationY?: number;
-    }
-  ): Promise<LoadedSceneObject> {
-    const object = await loadSceneObject(this.#scene, url, {
-      ...options,
-      getGroundedPosition: (position, groundMeshes) =>
-        this.#getGroundedPosition(position, groundMeshes),
-    });
-    this.#activeSceneObjects.push(object);
-    return object;
-  }
-
-  #stopWitchAnimations() {
-    for (const group of this.#witch?.container.animationGroups ?? []) {
-      group.stop();
-      group.reset();
-    }
-  }
-
-  #playWitchIdle() {
-    const witch = this.#witch;
-    if (!witch?.idleAnimation) {
-      return;
-    }
-
-    this.#stopWitchAnimations();
-    witch.idleAnimation.start(true);
-  }
-
-  #playWitchWave() {
-    const witch = this.#witch;
-    if (!witch?.waveAnimation) {
-      this.#playWitchIdle();
-      return;
-    }
-
-    this.#stopWitchAnimations();
-    witch.waveAnimation.reset();
-    witch.waveAnimation.start(false);
-    witch.waveAnimation.onAnimationGroupEndObservable.addOnce(() => {
-      this.#playWitchIdle();
-    });
   }
 
   #getGroundedPosition(position: Vector3, groundMeshes: AbstractMesh[]): Vector3 {
@@ -793,14 +495,8 @@ export class GameScene {
   }
 
   update(dt: number) {
-    for (const portal of this.#activePortals) {
-      portal.effect.update(dt);
-    }
-
-    this.#updateFloatingSceneObjects(dt);
-    this.#updateWitch(dt);
-    this.#updatePatrolNpcs(dt);
-    this.#updatePotionPickups(dt);
+    this.#portals.update(dt);
+    this.#levelObjects.update(dt, this.#player, this.#groundMeshes);
     this.#updateFireballs(dt);
     this.#updateBossProjectiles(dt);
     this.#updateSnowBoss(dt);
@@ -817,127 +513,6 @@ export class GameScene {
     this.#ai?.update(dt);
     this.#spawner?.update(dt);
     this.#checkPortalTransitions();
-  }
-
-  #updateFloatingSceneObjects(dt: number) {
-    for (const object of this.#floatingSceneObjects) {
-      object.elapsed += dt;
-      object.root.position.y =
-        object.baseY + Math.sin(object.elapsed * object.floatSpeed) * object.floatAmplitude;
-    }
-  }
-
-  #updatePatrolNpcs(dt: number) {
-    if (dt <= 0) {
-      return;
-    }
-
-    for (const npc of this.#patrolNpcs) {
-      if (npc.route.length === 0) {
-        continue;
-      }
-
-      const target = npc.route[npc.currentRouteIndex];
-      const toTarget = target.subtract(npc.root.position);
-      toTarget.y = 0;
-
-      const distance = toTarget.length();
-      if (distance <= Math.max(0.05, npc.speed * dt)) {
-        npc.root.position.x = target.x;
-        npc.root.position.z = target.z;
-        npc.currentRouteIndex = (npc.currentRouteIndex + 1) % npc.route.length;
-        continue;
-      }
-
-      const direction = toTarget.normalize();
-      npc.root.position.addInPlace(direction.scale(npc.speed * dt));
-      npc.root.rotation.y = Math.atan2(direction.x, direction.z);
-
-      const ground = this.#pickGroundAt(npc.root.position, this.#groundMeshes);
-      if (ground) {
-        npc.root.position.y = ground.y + npc.groundOffsetY;
-      }
-
-      if (npc.walkAnimation && !npc.walkAnimation.isPlaying) {
-        playSceneObjectAnimation(npc, npc.walkAnimation, true);
-      }
-    }
-  }
-
-  #updateWitch(dt: number) {
-    const witch = this.#witch;
-    if (!witch) {
-      return;
-    }
-
-    this.#updateWitchManaRestore(dt, witch);
-
-    witch.waveTimer = Math.max(0, witch.waveTimer - dt);
-
-    if (witch.waveTimer === 0) {
-      witch.waveTimer = WITCH_WAVE_INTERVAL_SECONDS;
-      this.#playWitchWave();
-    }
-  }
-
-  #updateWitchManaRestore(dt: number, witch: WitchNpc) {
-    this.#witchManaRestoreCooldown = Math.max(0, this.#witchManaRestoreCooldown - dt);
-
-    if (!this.#player || this.#player.isDead || this.#witchManaRestoreCooldown > 0) {
-      return;
-    }
-
-    if (this.#player.stats.mana >= this.#player.stats.maxMana) {
-      return;
-    }
-
-    const playerPosition = this.#player.root.position;
-    const witchPosition = witch.root.position;
-    const dx = playerPosition.x - witchPosition.x;
-    const dz = playerPosition.z - witchPosition.z;
-
-    if (dx * dx + dz * dz > WITCH_MANA_RESTORE_RADIUS * WITCH_MANA_RESTORE_RADIUS) {
-      return;
-    }
-
-    this.#player.restoreManaToFull();
-    this.#witchManaRestoreCooldown = WITCH_MANA_RESTORE_COOLDOWN_SECONDS;
-    this.#hudStatusText("Mana restored by Witch");
-    this.#updateHud();
-  }
-
-  #updatePotionPickups(dt: number) {
-    if (!this.#player || this.#player.isDead) {
-      return;
-    }
-
-    const playerPosition = this.#player.root.position;
-
-    for (const pickup of this.#potionPickups) {
-      pickup.cooldownLeft = Math.max(0, pickup.cooldownLeft - dt);
-
-      if (pickup.cooldownLeft > 0) {
-        continue;
-      }
-
-      const dx = playerPosition.x - pickup.root.position.x;
-      const dz = playerPosition.z - pickup.root.position.z;
-
-      if (dx * dx + dz * dz > pickup.radius * pickup.radius) {
-        continue;
-      }
-
-      if (pickup.kind === "health") {
-        this.#player.restoreHealthToFull();
-        this.#hudStatusText("Health restored");
-      } else {
-        this.#player.restoreManaToFull();
-        this.#hudStatusText("Mana restored");
-      }
-
-      pickup.cooldownLeft = POTION_PICKUP_COOLDOWN_SECONDS;
-      this.#updateHud();
-    }
   }
 
   #tryCastFireball(): boolean {
@@ -1012,7 +587,7 @@ export class GameScene {
     }
   }
 
-  #getFireballHitEnemy(position: Vector3): Enemy | null {
+  #getFireballHitEnemy(position: Vector3): CombatActor | null {
     for (const enemy of this.#combatEnemies) {
       if (enemy.isDead) {
         continue;
@@ -1066,7 +641,7 @@ export class GameScene {
     this.#shootSnowBossProjectile(boss, this.#player);
   }
 
-  #shootSnowBossProjectile(boss: Enemy, player: Enemy) {
+  #shootSnowBossProjectile(boss: CombatActor, player: CombatActor) {
     if (!this.#bossProjectileContainer) {
       return;
     }
@@ -1155,12 +730,12 @@ export class GameScene {
     }
   }
 
-  #findNearestFireballTarget(): Enemy | null {
+  #findNearestFireballTarget(): CombatActor | null {
     if (!this.#player) {
       return null;
     }
 
-    let nearest: Enemy | null = null;
+    let nearest: CombatActor | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
     for (const enemy of this.#combatEnemies) {
@@ -1281,22 +856,22 @@ export class GameScene {
     return this.#tryPlayerAttack(target);
   }
 
-  #getEnemyFromPickedMesh(mesh: AbstractMesh | null): Enemy | null {
+  #getEnemyFromPickedMesh(mesh: AbstractMesh | null): CombatActor | null {
     const combatant = mesh?.metadata?.combatant;
 
-    if (!(combatant instanceof Enemy) || combatant === this.#player || combatant.isDead) {
+    if (!(combatant instanceof CombatActor) || combatant === this.#player || combatant.isDead) {
       return null;
     }
 
     return this.#combatEnemies.includes(combatant) ? combatant : null;
   }
 
-  #findNearestEnemyInRange(): Enemy | null {
+  #findNearestEnemyInRange(): CombatActor | null {
     if (!this.#player) {
       return null;
     }
 
-    let nearest: Enemy | null = null;
+    let nearest: CombatActor | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
     for (const enemy of this.#combatEnemies) {
@@ -1315,7 +890,7 @@ export class GameScene {
     return nearest;
   }
 
-  #tryPlayerAttack(target: Enemy): boolean {
+  #tryPlayerAttack(target: CombatActor): boolean {
     if (!this.#player || target.isDead || this.#attackCooldown > 0) {
       return true;
     }
@@ -1341,7 +916,7 @@ export class GameScene {
     return true;
   }
 
-  #faceTarget(actor: Enemy, target: Vector3) {
+  #faceTarget(actor: CombatActor, target: Vector3) {
     const dx = target.x - actor.root.position.x;
     const dz = target.z - actor.root.position.z;
 
@@ -1354,22 +929,7 @@ export class GameScene {
   }
 
   #checkPortalTransitions() {
-    if (!this.#player || this.#portalCooldown > 0) {
-      return;
-    }
-
-    const playerPosition = this.#player.root.position;
-
-    for (const portal of this.#activePortals) {
-      const radius = portal.definition.radius ?? 2.4;
-      const dx = playerPosition.x - portal.position.x;
-      const dz = playerPosition.z - portal.position.z;
-
-      if (dx * dx + dz * dz <= radius * radius) {
-        void this.#changeLevel(portal.definition);
-        return;
-      }
-    }
+    this.#portals.checkTransitions(this.#player?.root.position ?? null, this.#portalCooldown);
   }
 
   async #changeLevel(portal: LevelPortalDefinition) {
@@ -1406,26 +966,8 @@ export class GameScene {
     this.#spawner?.disposeAll();
     this.#spawner = null;
 
-    for (const portal of this.#activePortals) {
-      portal.effect.dispose();
-      portal.labelRoot?.dispose(false, true);
-    }
-    this.#activePortals = [];
-
-    for (const object of this.#floatingSceneObjects) {
-      object.particleSystem?.dispose();
-    }
-    this.#floatingSceneObjects = [];
-
-    for (const object of this.#activeSceneObjects) {
-      object.container.dispose();
-      object.root.dispose();
-    }
-    this.#activeSceneObjects = [];
-    this.#patrolNpcs = [];
-    this.#witch = null;
-    this.#potionPickups = [];
-    this.#witchManaRestoreCooldown = 0;
+    this.#portals.dispose();
+    this.#levelObjects.dispose();
 
     this.#combatEnemies = [];
     this.#lastTarget = null;

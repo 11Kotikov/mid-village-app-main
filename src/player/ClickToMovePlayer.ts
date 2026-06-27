@@ -6,7 +6,7 @@ import type { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo";
 import type { Observer } from "@babylonjs/core/Misc/observable";
 import type { Scene } from "@babylonjs/core/scene";
 
-import { Enemy } from "../entities/Enemy";
+import { CombatActor } from "../entities/CombatActor";
 
 type ClickToMovePlayerOptions = {
   groundMeshes: AbstractMesh[];
@@ -27,7 +27,7 @@ type PointerDownState = {
 
 export class ClickToMovePlayer {
   #scene: Scene;
-  #player: Enemy;
+  #player: CombatActor;
   #groundSet: Set<AbstractMesh>;
   #destination: Vector3 | null;
   #speed: number;
@@ -40,7 +40,7 @@ export class ClickToMovePlayer {
   #pointerObserver: Observer<PointerInfo> | null;
   #pointerDown: PointerDownState;
 
-  constructor(scene: Scene, player: Enemy, opts: ClickToMovePlayerOptions) {
+  constructor(scene: Scene, player: CombatActor, opts: ClickToMovePlayerOptions) {
     this.#scene = scene;
     this.#player = player;
     this.#groundSet = new Set(opts.groundMeshes);

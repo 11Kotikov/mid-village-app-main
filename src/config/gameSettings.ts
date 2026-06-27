@@ -5,14 +5,14 @@ import type { LevelKey } from "../assets/paths";
 
 export const GAME_SETTINGS = {
   // Стартовая карта после запуска игры.
-  startLevel: "Blocks_Trailer_Map" as LevelKey,
+  startLevel: "Dark_Stage" as LevelKey,
 
   // Игрок: размер, камера, здоровье/мана, атака мечом, регенерация и fireball.
   player: {
     targetHeight: 1.85,
     stats: {
-      maxHealth: 120,
-      health: 120,
+      maxHealth: 12000,
+      health: 12000,
       maxMana: 80,
       mana: 80,
       attackDamage: 24,
@@ -24,7 +24,7 @@ export const GAME_SETTINGS = {
     },
     manaRegenRatioPerSecond: 0.01 / 60,
     respawn: {
-      level: "World_Village" as LevelKey,
+      level: "Snow_Terrain" as LevelKey,
       delaySeconds: 3.5,
       healthRatio: 0.05,
       manaRatio: 0.05,
@@ -56,19 +56,19 @@ export const GAME_SETTINGS = {
 
   // Камера: здесь можно менять стартовый угол, дистанцию, зум и управление.
   camera: {
-    alpha: (2 * Math.PI) / 3,
-    beta: Math.PI / 3,
-    radius: 60,
+    alpha: 0.6,//-Math.PI / 2,
+    beta: 1.4,//-Math.PI,
+    radius: 12,//100,
     target: new Vector3(10, 0, 10),
-    wheelPrecision: 10,
+    wheelPrecision: 3,
     inertia: 0.65,
     panningInertia: 0,
-    lowerBetaLimit: 0.25,
+    lowerBetaLimit: 0,
     upperBetaLimit: Math.PI * 0.48,
     // Скорость движения камеры по W/A/S/D. Увеличь число, если камера должна двигаться быстрее.
-    moveSpeed: 2,
+    moveSpeed: 15,
     // Чувствительность вращения камеры при зажатом колесе мыши.
-    middleMouseRotateSpeed: 0.005,
+    middleMouseRotateSpeed: 0.0005,
     // Кнопки, которые оставляет стандартному Babylon-управлению: 0 - левая, 2 - правая.
     // Колесо мыши (1) обрабатывается отдельно ниже в cameraControls.ts.
     pointerButtons: [0, 2],
@@ -99,19 +99,19 @@ export const GAME_SETTINGS = {
 
   // World_Village: точки ведьмы, зелий, котла и безопасного респавна рядом с хабом.
   worldVillageHub: {
-    witch: new Vector3(0, 0, 2.6),
-    healthPotion: new Vector3(-0.75, 0, 1.65),
-    manaPotion: new Vector3(0.75, 0, 1.65),
-    cauldron: new Vector3(0, 0, 3.55),
-    playerRespawn: new Vector3(0, 0, -2.25),
+    witch: new Vector3(0, 0, -4),
+    healthPotion: new Vector3(-2, 0, -3.25),
+    manaPotion: new Vector3(-2, 0, -3.65),
+    cauldron: new Vector3(0, 0, -5),
+    playerRespawn: new Vector3(3, 0, -5),
   },
 
   // Cave_Scene_Draft: декоративные объекты на карте.
   caveSceneDraftProps: {
     fantasyStable: {
-      position: new Vector3(8, 0, -10),
-      targetHeight: 4.5,
-      rotationY: Math.PI / 2,
+      position: new Vector3(-28, 0, -100),
+      targetHeight: 15,
+      rotationY: 3*Math.PI / 2,
     },
   },
 
@@ -145,40 +145,40 @@ export const GAME_SETTINGS = {
   // Blocks_Trailer_Map: замок/собор, NPC рядом с ним и маршруты патруля рыцарей.
   blocksTrailerProps: {
     cathedral: {
-      position: new Vector3(0, 0, -20),
-      targetHeight: 10,
-      rotationY: Math.PI,
+      position: new Vector3(3, 0, 60),
+      targetHeight: 60,
+      rotationY: 2 * Math.PI,
     },
     castleNpcs: {
       king: {
-        position: new Vector3(0, 0, -13.5),
-        targetHeight: 1.9,
+        position: new Vector3(-4, 0, 30),
+        targetHeight: 2.3,
         rotationY: Math.PI,
       },
       knight: {
-        position: new Vector3(3.2, 0, -13.25),
-        targetHeight: 1.85,
+        position: new Vector3(-4, 0, 25),
+        targetHeight: 1.5,
         rotationY: Math.PI,
       },
-      knight2TargetHeight: 1.85,
+      knight2TargetHeight: 2.5,
       knight2Speed: 2,
       knight2Patrols: [
         {
-          startPosition: new Vector3(-4, 0, -13.5),
+          startPosition: new Vector3(-11, 0, 38),
           route: [
-            new Vector3(-6.5, 0, -15.5),
-            new Vector3(-6.5, 0, -25),
-            new Vector3(-1.5, 0, -27.5),
-            new Vector3(-1.5, 0, -15.5),
+            new Vector3(11, 0, 37),
+            new Vector3(-15, 0, 37),
+            new Vector3(11, 0, 37),
+            new Vector3(-15, 0, 37),
           ],
         },
         {
-          startPosition: new Vector3(4, 0, -13.5),
+          startPosition: new Vector3(11, 0, 35),
           route: [
-            new Vector3(6.5, 0, -15.5),
-            new Vector3(6.5, 0, -25),
-            new Vector3(1.5, 0, -27.5),
-            new Vector3(1.5, 0, -15.5),
+            new Vector3(-11, 0, 35),
+            new Vector3(15, 0, 35),
+            new Vector3(-11, 0, 35),
+            new Vector3(15, 0, 35),
           ],
         },
       ],
@@ -190,7 +190,7 @@ export const GAME_SETTINGS = {
   levels: {
     Blocks_Trailer_Map: {
       scale: 33,
-      startPosition: new Vector3(100, 0, -6),
+      startPosition: new Vector3(35, 0, -30),
     },
     Cave_Scene_Draft: {
       scale: 60,
@@ -202,7 +202,7 @@ export const GAME_SETTINGS = {
     },
     Snow_Terrain: {
       scale: 10,
-      startPosition: new Vector3(0, 0, -6),
+      startPosition: new Vector3(10, 0, -80),
       ambientAudioUrl: "/audio/snowWind.mp3",
     },
     Walk_in_the_Woods: {
@@ -212,7 +212,7 @@ export const GAME_SETTINGS = {
     },
     Warefall: {
       scale: 60,
-      startPosition: new Vector3(0, 0, -6),
+      startPosition: new Vector3(20, 0, -10),
       ambientAudioUrl: "/audio/forest.mp3",
     },
     World_Village: {
@@ -237,7 +237,7 @@ export const GAME_SETTINGS = {
     Blocks_Trailer_Map: [
       {
         id: "blocks_from_village",
-        position: new Vector3(0, 0, 0),
+        position: new Vector3(-10, 0, -89), //globalThis.debugNode.position = new Vector3(-10.600494005618145, 65.65620045010083, -89.7676187103517); // (debugNode as Unknown)
         targetLevel: "World_Village" as LevelKey,
         targetPortalId: "village_to_blocks",
       },
@@ -245,7 +245,7 @@ export const GAME_SETTINGS = {
     Cave_Scene_Draft: [
       {
         id: "cave_from_village",
-        position: new Vector3(0, 0, 0),
+        position: new Vector3(-20, 0, 60),
         targetLevel: "World_Village" as LevelKey,
         targetPortalId: "village_to_cave",
       },
@@ -274,19 +274,19 @@ export const GAME_SETTINGS = {
     Snow_Terrain: [
       {
         id: "snow_from_village",
-        position: new Vector3(-6, 0, 0),
+        position: new Vector3(-300, 0, 0),
         targetLevel: "World_Village" as LevelKey,
         targetPortalId: "village_to_snow",
       },
       {
         id: "snow_from_cave",
-        position: new Vector3(0, 0, 6),
+        position: new Vector3(0, 0, 300),
         targetLevel: "Cave_Scene_Draft" as LevelKey,
         targetPortalId: "cave_to_snow",
       },
       {
         id: "snow_to_waterfall",
-        position: new Vector3(6, 0, 0),
+        position: new Vector3(300, 0, 0),
         targetLevel: "Warefall" as LevelKey,
         targetPortalId: "waterfall_from_snow",
         arrivalOffset: new Vector3(-4, 0, 0),
@@ -303,7 +303,7 @@ export const GAME_SETTINGS = {
     Warefall: [
       {
         id: "waterfall_from_village",
-        position: new Vector3(-6, 0, 0),
+        position: new Vector3(-15, 0, 10),
         targetLevel: "World_Village" as LevelKey,
         targetPortalId: "village_to_waterfall",
       },
@@ -471,7 +471,7 @@ export const GAME_SETTINGS = {
         maxForce: 12,
         arriveDeceleration: 2,
         nodeReachedDistance: 0.5,
-        speed: 1.25,
+        speed: 5,
         chaseSpeed: 3,
         aggroRange: 13,
         loseRange: 20,
@@ -483,7 +483,7 @@ export const GAME_SETTINGS = {
     },
     skeletonHelmed: {
       url: "/models/enemies/Skeleton_helmed.glb",
-      targetHeight: 1.9,
+      targetHeight: 2.3,
       animations: {
         idle: ["Idle"],
         walk: ["Walk"],
@@ -514,8 +514,8 @@ export const GAME_SETTINGS = {
       },
     },
     skeletonHelmedBoss: {
-      url: "/models/enemies/Skeleton_helmed.glb",
-      targetHeight: 2.35,
+      url: "/models/enemies/Skeleton_boss.glb",
+      targetHeight: 3.1,
       animations: {
         idle: ["Idle"],
         walk: ["Walk"],
@@ -709,7 +709,7 @@ export const GAME_SETTINGS = {
     },
     coldPlanet: {
       url: "/models/enemies/Cold_Planet.glb",
-      targetHeight: 2.8,
+      targetHeight: 10,
       animations: {
         idle: [],
         walk: [],
@@ -760,7 +760,7 @@ export const GAME_SETTINGS = {
   // Snow_Terrain: параметры снегопада из системы частиц.
   snowTerrainWeather: {
     emitRate: 850,
-    capacity: 4500,
+    capacity: 45000,
     minEmitBox: new Vector3(-45, 26, -45),
     maxEmitBox: new Vector3(45, 32, 45),
     gravity: new Vector3(0.25, -3.4, 0.15),
@@ -783,12 +783,12 @@ export const GAME_SETTINGS = {
     Blocks_Trailer_Map: {
       // Здесь меняй расстановку скелетов и боссов на Blocks_Trailer_Map.
       route: [
-        { name: "skeleton_headless_spawn_left", position: new Vector3(-20, 0, 8), pauseSeconds: 2 },
-        { name: "skeleton_headless_patrol_left", position: new Vector3(-5, 0, 13) },
-        { name: "skeleton_headless_spawn_center", position: new Vector3(0, 0, 9), pauseSeconds: 2 },
-        { name: "skeleton_headless_patrol_right", position: new Vector3(5, 0, 13) },
-        { name: "skeleton_headless_spawn_right", position: new Vector3(10, 0, 8), pauseSeconds: 2 },
-        { name: "skeleton_helmed_spawn_left", position: new Vector3(-12, 0, -2), pauseSeconds: 2.5 },
+        { name: "skeleton_headless_spawn_left", position: new Vector3(40, 0, -20), pauseSeconds: 1 },
+        { name: "skeleton_headless_patrol_left", position: new Vector3(35, 0, -20), pauseSeconds: 1 },
+        { name: "skeleton_headless_spawn_center", position: new Vector3(25, 0, -30), pauseSeconds: 1 },
+        { name: "skeleton_headless_patrol_right", position: new Vector3(25, 0, -40) },
+        { name: "skeleton_headless_spawn_right", position: new Vector3(40, 0, -40), pauseSeconds: 2 },
+        { name: "skeleton_helmed_spawn_left", position: new Vector3(40, 0, -25), pauseSeconds: 2.5 },
         { name: "skeleton_helmed_patrol_center", position: new Vector3(0, 0, 2) },
         { name: "skeleton_helmed_spawn_right", position: new Vector3(12, 0, -2), pauseSeconds: 2.5 },
         { name: "skeleton_boss_spawn_left", position: new Vector3(-9, 0, -13), pauseSeconds: 4 },
@@ -796,14 +796,14 @@ export const GAME_SETTINGS = {
       ],
       groups: [
         { model: "skeletonHeadless", baseName: "skeleton_headless", startNodeIndices: [0, 2, 4] },
-        { model: "skeletonHelmed", baseName: "skeleton_helmed", startNodeIndices: [5, 7] },
-        { model: "skeletonHelmedBoss", baseName: "skeleton_boss", startNodeIndices: [8, 9] },
+        // { model: "skeletonHelmed", baseName: "skeleton_helmed", startNodeIndices: [5] },
+       // { model: "skeletonHelmedBoss", baseName: "skeleton_boss", startNodeIndices: [5] },
       ],
     },
     Cave_Scene_Draft: {
       // Здесь меняй врагов и маршрут на Cave_Scene_Draft.
       route: [
-        { name: "goblin_spawn_1", position: new Vector3(2, 0, 8), pauseSeconds: 2.5 },
+        { name: "goblin_spawn_1", position: new Vector3(-20, 0, 80), pauseSeconds: 2.5 },
         { name: "goblin_patrol_1", position: new Vector3(10, 0, 8) },
         { name: "goblin_spawn_2", position: new Vector3(10, 0, 2), pauseSeconds: 2.5 },
         { name: "goblin_patrol_2", position: new Vector3(10, 0, -4) },
@@ -814,8 +814,8 @@ export const GAME_SETTINGS = {
         { name: "center_patrol", position: new Vector3(2, 0, 1) },
       ],
       groups: [
-        { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
-        { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
+        { model: "goblin", baseName: "goblin", startNodeIndices: [0] },
+        { model: "orc", baseName: "orc", startNodeIndices: [0] },
       ],
     },
     Dark_Stage: {
@@ -890,8 +890,8 @@ export const GAME_SETTINGS = {
         { name: "village_orc_left_spawn", position: new Vector3(-16, 0, 6), pauseSeconds: 2.5 },
       ],
       groups: [
-        { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
-        { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
+        // { model: "goblin", baseName: "goblin", startNodeIndices: [0, 2, 4] },
+        // { model: "orc", baseName: "orc", startNodeIndices: [5, 7] },
       ],
     },
   } satisfies Record<
