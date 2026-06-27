@@ -1,31 +1,31 @@
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 
-import { CombatActor } from "./CombatActor";
 import { ActorPrefab } from "./ActorPrefab";
+import { EnemyActor } from "./EnemyActor";
 
 type SpawnOpts = {
   groundMeshes?: AbstractMesh[];
 };
 
 export class EnemySpawner {
-  #enemies: CombatActor[];
+  #enemies: EnemyActor[];
 
   constructor() {
     this.#enemies = [];
   }
 
-  get enemies(): CombatActor[] {
+  get enemies(): EnemyActor[] {
     return this.#enemies;
   }
 
   spawnMany(
-    prefab: ActorPrefab,
+    prefab: ActorPrefab<EnemyActor>,
     points: Vector3[],
     baseName: string,
     opts: SpawnOpts = {}
-  ): CombatActor[] {
-    const created: CombatActor[] = [];
+  ): EnemyActor[] {
+    const created: EnemyActor[] = [];
 
     points.forEach((p, i) => {
       const enemy = prefab.spawn(new Vector3(p.x, p.y, p.z), `${baseName}_${i}`, {

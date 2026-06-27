@@ -1,4 +1,5 @@
-import type { CombatActor } from "../entities/CombatActor";
+import type { EnemyActor } from "../entities/EnemyActor";
+import type { PlayerActor } from "../entities/PlayerActor";
 
 type HudBar = {
   root: HTMLDivElement;
@@ -6,8 +7,8 @@ type HudBar = {
 };
 
 type HudUpdateOptions = {
-  player: CombatActor | null;
-  target: CombatActor | null;
+  player: PlayerActor | null;
+  target: EnemyActor | null;
   playerRespawnTimeLeft: number | null;
   isRespawningPlayer: boolean;
 };

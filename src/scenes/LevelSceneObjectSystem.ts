@@ -11,7 +11,7 @@ import {
   type LevelKey,
 } from "../assets/paths";
 import { GAME_SETTINGS } from "../config/gameSettings";
-import type { CombatActor } from "../entities/CombatActor";
+import type { PlayerActor } from "../entities/PlayerActor";
 import { createEvilBookGlow } from "../effects/BookGlow";
 
 import {
@@ -107,7 +107,7 @@ export class LevelSceneObjectSystem {
     }
   }
 
-  update(dt: number, player: CombatActor | null, groundMeshes: AbstractMesh[]) {
+  update(dt: number, player: PlayerActor | null, groundMeshes: AbstractMesh[]) {
     this.#updateFloatingSceneObjects(dt);
     this.#updateWitch(dt, player);
     this.#updatePatrolNpcs(dt, groundMeshes);
@@ -333,7 +333,7 @@ export class LevelSceneObjectSystem {
     }
   }
 
-  #updateWitch(dt: number, player: CombatActor | null) {
+  #updateWitch(dt: number, player: PlayerActor | null) {
     const witch = this.#witch;
     if (!witch) {
       return;
@@ -349,7 +349,7 @@ export class LevelSceneObjectSystem {
     }
   }
 
-  #updateWitchManaRestore(dt: number, witch: WitchNpc, player: CombatActor | null) {
+  #updateWitchManaRestore(dt: number, witch: WitchNpc, player: PlayerActor | null) {
     this.#witchManaRestoreCooldown = Math.max(0, this.#witchManaRestoreCooldown - dt);
 
     if (!player || player.isDead || this.#witchManaRestoreCooldown > 0) {
@@ -375,7 +375,7 @@ export class LevelSceneObjectSystem {
     this.#onHudChanged();
   }
 
-  #updatePotionPickups(dt: number, player: CombatActor | null) {
+  #updatePotionPickups(dt: number, player: PlayerActor | null) {
     if (!player || player.isDead) {
       return;
     }

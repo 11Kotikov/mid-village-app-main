@@ -4,6 +4,7 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Ray } from "@babylonjs/core/Culling/ray";
+import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 
 import { CombatActor, type ActorAnimationSet } from "./CombatActor";
 import { getHierarchyHeight, getHierarchyMinY } from "../assets/measure";
@@ -19,7 +20,13 @@ type SpawnOptions = {
   logSizing?: boolean;
 };
 
-export class ActorPrefab {
+type ActorConstructor<TActor extends CombatActor> = new (
+  root: TransformNode,
+  animationGroups: AnimationGroup[],
+  animations?: ActorAnimationSet
+) => TActor;
+
+export class ActorPrefab<TActor extends CombatActor = CombatActor> {
   #scene: Scene;
   #container: AssetContainer;
   #kind: string;
@@ -27,6 +34,7 @@ export class ActorPrefab {
   #targetHeight: number | null;
   #fixedScale: number | null;
   #animations: ActorAnimationSet;
+  #ActorClass: ActorConstructor<TActor>;
 
   #defaults: Required<Omit<SpawnOptions, "groundMeshes">> & { groundMeshes: undefined };
 
@@ -35,12 +43,14 @@ export class ActorPrefab {
     container: AssetContainer,
     kind: string,
     size: SizeOptions,
-    animations: ActorAnimationSet = {}
+    animations: ActorAnimationSet = {},
+    ActorClass: ActorConstructor<TActor> = CombatActor as ActorConstructor<TActor>
   ) {
     this.#scene = scene;
     this.#container = container;
     this.#kind = kind;
     this.#animations = animations;
+    this.#ActorClass = ActorClass;
 
     if ("targetHeight" in size) {
       this.#targetHeight = size.targetHeight;
@@ -60,7 +70,7 @@ export class ActorPrefab {
     };
   }
 
-  spawn(position: Vector3, name = this.#kind, opts: SpawnOptions = {}): CombatActor {
+  spawn(position: Vector3, name = this.#kind, opts: SpawnOptions = {}): TActor {
     const options = { ...this.#defaults, ...opts };
 
     const inst = this.#container.instantiateModelsToScene(
@@ -123,7 +133,7 @@ export class ActorPrefab {
       );
     }
 
-    const actor = new CombatActor(root, inst.animationGroups, this.#animations);
+    const actor = new this.#ActorClass(root, inst.animationGroups, this.#animations);
 
     if (hitGroundY != null) {
       actor.setGroundOffsetY(root.position.y - hitGroundY);

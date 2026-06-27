@@ -36,6 +36,8 @@ import {
 } from "../world/levelPortalConfig";
 import { CombatActor } from "../entities/CombatActor";
 import { ActorPrefab } from "../entities/ActorPrefab";
+import { EnemyActor } from "../entities/EnemyActor";
+import { PlayerActor } from "../entities/PlayerActor";
 import { EnemySpawner } from "../entities/EnemySpawner";
 import { YukaWorld } from "../ai/YukaWorld";
 import { setupInspectorHotkey } from "../debug/inspectorHotkey";
@@ -97,14 +99,14 @@ export class GameScene {
   #canvas: HTMLCanvasElement;
   #spawner: EnemySpawner | null;
   #prefabs: ActorPrefab[];
-  #enemyPrefabs: Map<string, ActorPrefab>;
-  #playerPrefab: ActorPrefab | null;
+  #enemyPrefabs: Map<string, ActorPrefab<EnemyActor>>;
+  #playerPrefab: ActorPrefab<PlayerActor> | null;
   #bossProjectileContainer: AssetContainer | null;
   #level: Level | null;
   #groundMeshes: AbstractMesh[];
   #skybox: Skybox | null = null;
   #ai: YukaWorld | null;
-  #player: CombatActor | null;
+  #player: PlayerActor | null;
   #playerController: ClickToMovePlayer | null;
   #audio: AmbientAudio | null;
   #disposeInspectorHotkey: (() => void) | null;
@@ -115,10 +117,10 @@ export class GameScene {
   #fireballs: FireballProjectile[];
   #bossProjectiles: BossProjectile[];
   #snowfall: ParticleSystem | null;
-  #snowBoss: CombatActor | null;
+  #snowBoss: EnemyActor | null;
   #snowBossShootCooldown: number;
-  #combatEnemies: CombatActor[];
-  #lastTarget: CombatActor | null;
+  #combatEnemies: EnemyActor[];
+  #lastTarget: EnemyActor | null;
   #attackCooldown: number;
   #fireballCooldown: number;
   #playerCastAnimationTimeLeft: number;
@@ -201,7 +203,8 @@ export class GameScene {
         enemyContainer,
         modelKey,
         { targetHeight: modelConfig.targetHeight },
-        modelConfig.animations
+        modelConfig.animations,
+        EnemyActor
       );
 
       this.#enemyPrefabs.set(modelKey, enemyPrefab);
@@ -215,9 +218,16 @@ export class GameScene {
 
     const playerContainer = await loadGLBAsContainer(this.#scene, PLAYER_URLS.hoodedAdventurer);
 
-    this.#playerPrefab = new ActorPrefab(this.#scene, playerContainer, "player", {
-      targetHeight: GAME_SETTINGS.player.targetHeight,
-    });
+    this.#playerPrefab = new ActorPrefab(
+      this.#scene,
+      playerContainer,
+      "player",
+      {
+        targetHeight: GAME_SETTINGS.player.targetHeight,
+      },
+      {},
+      PlayerActor
+    );
 
     this.#prefabs.push(this.#playerPrefab);
 
@@ -587,7 +597,7 @@ export class GameScene {
     }
   }
 
-  #getFireballHitEnemy(position: Vector3): CombatActor | null {
+  #getFireballHitEnemy(position: Vector3): EnemyActor | null {
     for (const enemy of this.#combatEnemies) {
       if (enemy.isDead) {
         continue;
@@ -641,7 +651,7 @@ export class GameScene {
     this.#shootSnowBossProjectile(boss, this.#player);
   }
 
-  #shootSnowBossProjectile(boss: CombatActor, player: CombatActor) {
+  #shootSnowBossProjectile(boss: EnemyActor, player: PlayerActor) {
     if (!this.#bossProjectileContainer) {
       return;
     }
@@ -730,12 +740,12 @@ export class GameScene {
     }
   }
 
-  #findNearestFireballTarget(): CombatActor | null {
+  #findNearestFireballTarget(): EnemyActor | null {
     if (!this.#player) {
       return null;
     }
 
-    let nearest: CombatActor | null = null;
+    let nearest: EnemyActor | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
     for (const enemy of this.#combatEnemies) {
@@ -856,22 +866,22 @@ export class GameScene {
     return this.#tryPlayerAttack(target);
   }
 
-  #getEnemyFromPickedMesh(mesh: AbstractMesh | null): CombatActor | null {
+  #getEnemyFromPickedMesh(mesh: AbstractMesh | null): EnemyActor | null {
     const combatant = mesh?.metadata?.combatant;
 
-    if (!(combatant instanceof CombatActor) || combatant === this.#player || combatant.isDead) {
+    if (!(combatant instanceof EnemyActor) || combatant.isDead) {
       return null;
     }
 
     return this.#combatEnemies.includes(combatant) ? combatant : null;
   }
 
-  #findNearestEnemyInRange(): CombatActor | null {
+  #findNearestEnemyInRange(): EnemyActor | null {
     if (!this.#player) {
       return null;
     }
 
-    let nearest: CombatActor | null = null;
+    let nearest: EnemyActor | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
     for (const enemy of this.#combatEnemies) {
@@ -890,7 +900,7 @@ export class GameScene {
     return nearest;
   }
 
-  #tryPlayerAttack(target: CombatActor): boolean {
+  #tryPlayerAttack(target: EnemyActor): boolean {
     if (!this.#player || target.isDead || this.#attackCooldown > 0) {
       return true;
     }
