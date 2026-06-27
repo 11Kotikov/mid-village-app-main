@@ -2,15 +2,11 @@ import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 
-import {
-  AnimationController,
-  type ActorAnimationSet,
-} from "./animation/AnimationController";
+import { AnimatedActor } from "./AnimatedActor";
+import type { ActorAnimationSet } from "./animation/AnimationController";
 
-export class FriendlyNpc {
+export class FriendlyNpc extends AnimatedActor {
   #container: AssetContainer;
-  #root: TransformNode;
-  #animations: AnimationController;
 
   constructor(
     container: AssetContainer,
@@ -18,42 +14,13 @@ export class FriendlyNpc {
     animationGroups: AnimationGroup[],
     animations: ActorAnimationSet = {}
   ) {
+    super(root, animationGroups, animations);
     this.#container = container;
-    this.#root = root;
-    this.#animations = new AnimationController(animationGroups, animations);
-  }
-
-  get root(): TransformNode {
-    return this.#root;
-  }
-
-  playOnlyBySuffix(suffix: string, loop = true): boolean {
-    return this.#animations.playOnlyBySuffix(suffix, loop);
-  }
-
-  playOnceBySuffix(suffix: string, onEnded?: () => void): boolean {
-    return this.#animations.playOnceBySuffix(suffix, onEnded);
-  }
-
-  playIdle(loop = true): boolean {
-    return this.#animations.playIdle(loop);
-  }
-
-  playWalk(loop = true): boolean {
-    return this.#animations.playWalk(loop);
-  }
-
-  playRun(loop = true): boolean {
-    return this.#animations.playRun(loop);
-  }
-
-  resetAnimations() {
-    this.#animations.reset();
   }
 
   dispose() {
-    this.#animations.dispose();
+    this.disposeAnimationState();
     this.#container.dispose();
-    this.#root.dispose();
+    this.disposeRoot();
   }
 }

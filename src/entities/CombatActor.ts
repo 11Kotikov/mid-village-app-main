@@ -6,10 +6,8 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 
 import { getHierarchyHeight } from "../assets/measure";
-import {
-  AnimationController,
-  type ActorAnimationSet,
-} from "./animation/AnimationController";
+import { AnimatedActor } from "./AnimatedActor";
+import type { ActorAnimationSet } from "./animation/AnimationController";
 
 export type CombatStats = {
   maxHealth: number;
@@ -34,10 +32,7 @@ export type { ActorAnimationSet } from "./animation/AnimationController";
 
 const DEFAULT_DEATH_DESPAWN_SECONDS = 3.5;
 
-export class CombatActor {
-  #root: TransformNode;
-  #animations: AnimationController;
-  #baseScaling: Vector3;
+export class CombatActor extends AnimatedActor {
   #groundOffsetY: number;
   #stats: CombatStats;
   #respawnStats: CombatStats;
@@ -47,9 +42,7 @@ export class CombatActor {
   #deathDespawnTimer: number | null;
 
   constructor(root: TransformNode, animationGroups: AnimationGroup[], animations: ActorAnimationSet = {}) {
-    this.#root = root;
-    this.#animations = new AnimationController(animationGroups, animations);
-    this.#baseScaling = root.scaling.clone();
+    super(root, animationGroups, animations);
     this.#groundOffsetY = 0;
     this.#stats = {
       maxHealth: 100,
@@ -88,10 +81,6 @@ export class CombatActor {
     this.#hitbox.material = material;
 
     this.updateHitbox();
-  }
-
-  get root(): TransformNode {
-    return this.#root;
   }
 
   get groundOffsetY(): number {
@@ -134,7 +123,7 @@ export class CombatActor {
 
     this.#dead = this.#stats.health <= 0;
     this.#deathDespawnTimer = null;
-    this.#root.setEnabled(!this.#dead);
+    this.root.setEnabled(!this.#dead);
     this.#hitbox.setEnabled(!this.#dead);
   }
 
@@ -196,10 +185,10 @@ export class CombatActor {
     this.#stats.mana = Math.min(options.mana ?? this.#stats.mana, this.#stats.maxMana);
     this.#dead = false;
     this.#deathDespawnTimer = null;
-    this.#resetScale();
-    this.#animations.reset();
-    this.#root.position.copyFrom(position);
-    this.#root.setEnabled(true);
+    this.resetScale();
+    this.resetAnimations();
+    this.root.position.copyFrom(position);
+    this.root.setEnabled(true);
     this.#hitbox.setEnabled(true);
     this.updateHitbox();
 
@@ -209,43 +198,15 @@ export class CombatActor {
   }
 
   distanceTo(other: CombatActor): number {
-    return Vector3.Distance(this.#root.position, other.root.position);
+    return Vector3.Distance(this.root.position, other.root.position);
   }
 
   updateHitbox() {
     this.#hitbox.position.set(
-      this.#root.position.x,
-      this.#root.position.y + this.#hitboxHeight * 0.5,
-      this.#root.position.z
+      this.root.position.x,
+      this.root.position.y + this.#hitboxHeight * 0.5,
+      this.root.position.z
     );
-  }
-
-  playOnlyBySuffix(suffix: string, loop = true): boolean {
-    return this.#animations.playOnlyBySuffix(suffix, loop);
-  }
-
-  playWalk(loop = true): boolean {
-    return this.#animations.playWalk(loop);
-  }
-
-  playRun(loop = true): boolean {
-    return this.#animations.playRun(loop);
-  }
-
-  playIdle(loop = true): boolean {
-    return this.#animations.playIdle(loop);
-  }
-
-  playAttack(loop = false): boolean {
-    return this.#animations.playAttack(loop);
-  }
-
-  playDeath(loop = false): boolean {
-    return this.#animations.playDeath(loop);
-  }
-
-  playAll(loop = true) {
-    this.#animations.playAll(loop);
   }
 
   update(dt: number) {
@@ -255,7 +216,7 @@ export class CombatActor {
 
         if (this.#deathDespawnTimer === 0) {
           this.#deathDespawnTimer = null;
-          this.#root.setEnabled(false);
+          this.root.setEnabled(false);
         }
       }
 
@@ -266,15 +227,15 @@ export class CombatActor {
   }
 
   dispose() {
-    this.#animations.dispose();
+    this.disposeAnimationState();
     this.#hitbox.dispose(false, true);
-    this.#root.dispose();
+    this.disposeRoot();
   }
 
   #die() {
     this.#dead = true;
-    this.#animations.clearActiveAnimation();
-    this.#resetScale();
+    this.clearActiveAnimation();
+    this.resetScale();
     this.#hitbox.setEnabled(false);
 
     if (this.playDeath(false)) {
@@ -282,10 +243,6 @@ export class CombatActor {
       return;
     }
 
-    this.#root.setEnabled(false);
-  }
-
-  #resetScale() {
-    this.#root.scaling.copyFrom(this.#baseScaling);
+    this.root.setEnabled(false);
   }
 }
