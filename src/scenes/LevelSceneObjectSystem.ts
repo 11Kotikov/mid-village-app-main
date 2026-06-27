@@ -1,4 +1,3 @@
-import type { AnimationGroup } from "@babylonjs/core/Animations/animationGroup";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import type { Scene } from "@babylonjs/core/scene";
 import type { ParticleSystem } from "@babylonjs/core/Particles/particleSystem";
@@ -11,19 +10,19 @@ import {
   type LevelKey,
 } from "../assets/paths";
 import { GAME_SETTINGS } from "../config/gameSettings";
+import { FriendlyNpc } from "../entities/FriendlyNpc";
 import type { PlayerActor } from "../entities/PlayerActor";
+import { QuestNpc, type QuestNpcOptions } from "../entities/QuestNpc";
+import type { ActorAnimationSet } from "../entities/animation/AnimationController";
 import { createEvilBookGlow } from "../effects/BookGlow";
 
 import {
-  findAnimationBySuffix,
   loadSceneObject,
-  playSceneObjectAnimation,
   type LoadedSceneObject,
 } from "./sceneObjects";
 
-type WitchNpc = LoadedSceneObject & {
-  idleAnimation: AnimationGroup | null;
-  waveAnimation: AnimationGroup | null;
+type WitchNpc = {
+  npc: QuestNpc;
   waveTimer: number;
 };
 
@@ -33,12 +32,12 @@ type PotionPickup = LoadedSceneObject & {
   cooldownLeft: number;
 };
 
-type PatrolNpc = LoadedSceneObject & {
+type PatrolNpc = {
+  npc: FriendlyNpc;
   route: Vector3[];
   currentRouteIndex: number;
   speed: number;
   groundOffsetY: number;
-  walkAnimation: AnimationGroup | null;
 };
 
 type FloatingSceneObject = LoadedSceneObject & {
@@ -56,6 +55,15 @@ type LevelSceneObjectSystemOptions = {
   onHudChanged: () => void;
 };
 
+type SceneObjectLoadOptions = {
+  name: string;
+  position: Vector3;
+  groundMeshes: AbstractMesh[];
+  targetHeight?: number;
+  scale?: number;
+  rotationY?: number;
+};
+
 const WITCH_WAVE_INTERVAL_SECONDS = GAME_SETTINGS.witch.waveIntervalSeconds;
 const WITCH_MANA_RESTORE_RADIUS = GAME_SETTINGS.witch.manaRestoreRadius;
 const WITCH_MANA_RESTORE_COOLDOWN_SECONDS = GAME_SETTINGS.witch.manaRestoreCooldownSeconds;
@@ -70,6 +78,7 @@ export class LevelSceneObjectSystem {
   #onStatusText: LevelSceneObjectSystemOptions["onStatusText"];
   #onHudChanged: LevelSceneObjectSystemOptions["onHudChanged"];
   #activeSceneObjects: LoadedSceneObject[] = [];
+  #friendlyNpcs: FriendlyNpc[] = [];
   #floatingSceneObjects: FloatingSceneObject[] = [];
   #patrolNpcs: PatrolNpc[] = [];
   #witch: WitchNpc | null = null;
@@ -139,19 +148,20 @@ export class LevelSceneObjectSystem {
   }
 
   async #createWorldVillageObjects(groundMeshes: AbstractMesh[]) {
-    const witchObject = await this.#loadSceneObject(NPC_URLS.witch, {
+    const witch = await this.#loadQuestNpc(NPC_URLS.witch, {
       name: "witch_npc",
       position: WORLD_VILLAGE_HUB.witch,
       groundMeshes,
       targetHeight: GAME_SETTINGS.witch.targetHeight,
       rotationY: Math.PI,
+    }, {
+      idle: ["Idle_Neutral", "Idle"],
+    }, {
+      questId: "witch_hub",
+      interactionRadius: GAME_SETTINGS.witch.manaRestoreRadius,
     });
     this.#witch = {
-      ...witchObject,
-      idleAnimation: findAnimationBySuffix(witchObject.container.animationGroups, [
-        "Idle_Neutral",
-      ]),
-      waveAnimation: findAnimationBySuffix(witchObject.container.animationGroups, ["Wave"]),
+      npc: witch,
       waveTimer: WITCH_WAVE_INTERVAL_SECONDS,
     };
     this.#playWitchIdle();
@@ -217,68 +227,57 @@ export class LevelSceneObjectSystem {
   async #createBlocksTrailerCastleNpcs(groundMeshes: AbstractMesh[]) {
     const npcs = GAME_SETTINGS.blocksTrailerProps.castleNpcs;
 
-    const king = await this.#loadSceneObject(NPC_URLS.king, {
+    const king = await this.#loadQuestNpc(NPC_URLS.king, {
       name: "blocks_trailer_king",
       position: npcs.king.position,
       groundMeshes,
       targetHeight: npcs.king.targetHeight,
       rotationY: npcs.king.rotationY,
+    }, {
+      idle: ["Idle_Neutral", "Idle"],
+    }, {
+      questId: "blocks_trailer_king",
+      interactionRadius: 2.25,
     });
-    playSceneObjectAnimation(
-      king,
-      findAnimationBySuffix(king.container.animationGroups, ["Idle_Neutral", "Idle"]),
-      true
-    );
+    king.playIdle(true);
 
-    const knight = await this.#loadSceneObject(NPC_URLS.knight, {
+    const knight = await this.#loadFriendlyNpc(NPC_URLS.knight, {
       name: "blocks_trailer_knight",
       position: npcs.knight.position,
       groundMeshes,
       targetHeight: npcs.knight.targetHeight,
       rotationY: npcs.knight.rotationY,
+    }, {
+      idle: ["Idle", "ArmatureAction"],
     });
-    playSceneObjectAnimation(
-      knight,
-      findAnimationBySuffix(knight.container.animationGroups, ["Idle", "ArmatureAction"]),
-      true
-    );
+    knight.playIdle(true);
 
     for (const [index, patrol] of npcs.knight2Patrols.entries()) {
-      const knight2 = await this.#loadSceneObject(NPC_URLS.knight2, {
+      const knight2 = await this.#loadFriendlyNpc(NPC_URLS.knight2, {
         name: `blocks_trailer_knight2_patrol_${index + 1}`,
         position: patrol.startPosition,
         groundMeshes,
         targetHeight: npcs.knight2TargetHeight,
+      }, {
+        walk: ["Walk_Formal_Loop", "Walk", "Run"],
+        idle: ["Idle", "Idle_Neutral"],
       });
-      const walkAnimation = findAnimationBySuffix(knight2.container.animationGroups, [
-        "Walk_Formal_Loop",
-        "Walk",
-        "Run",
-      ]);
-      playSceneObjectAnimation(knight2, walkAnimation, true);
+      knight2.playWalk(true);
 
       const grounded = this.#getGroundedPosition(knight2.root.position, groundMeshes);
       this.#patrolNpcs.push({
-        ...knight2,
+        npc: knight2,
         route: patrol.route.map((point) => this.#getGroundedPosition(point, groundMeshes)),
         currentRouteIndex: 0,
         speed: npcs.knight2Speed,
         groundOffsetY: knight2.root.position.y - grounded.y,
-        walkAnimation,
       });
     }
   }
 
   async #loadSceneObject(
     url: string,
-    options: {
-      name: string;
-      position: Vector3;
-      groundMeshes: AbstractMesh[];
-      targetHeight?: number;
-      scale?: number;
-      rotationY?: number;
-    }
+    options: SceneObjectLoadOptions
   ): Promise<LoadedSceneObject> {
     const object = await loadSceneObject(this.#scene, url, {
       ...options,
@@ -286,6 +285,46 @@ export class LevelSceneObjectSystem {
     });
     this.#activeSceneObjects.push(object);
     return object;
+  }
+
+  async #loadFriendlyNpc(
+    url: string,
+    options: SceneObjectLoadOptions,
+    animations: ActorAnimationSet = {}
+  ): Promise<FriendlyNpc> {
+    const object = await loadSceneObject(this.#scene, url, {
+      ...options,
+      getGroundedPosition: this.#getGroundedPosition,
+    });
+    const npc = new FriendlyNpc(
+      object.container,
+      object.root,
+      object.container.animationGroups,
+      animations
+    );
+    this.#friendlyNpcs.push(npc);
+    return npc;
+  }
+
+  async #loadQuestNpc(
+    url: string,
+    options: SceneObjectLoadOptions,
+    animations: ActorAnimationSet,
+    questOptions: QuestNpcOptions
+  ): Promise<QuestNpc> {
+    const object = await loadSceneObject(this.#scene, url, {
+      ...options,
+      getGroundedPosition: this.#getGroundedPosition,
+    });
+    const npc = new QuestNpc(
+      object.container,
+      object.root,
+      object.container.animationGroups,
+      animations,
+      questOptions
+    );
+    this.#friendlyNpcs.push(npc);
+    return npc;
   }
 
   #updateFloatingSceneObjects(dt: number) {
@@ -306,30 +345,29 @@ export class LevelSceneObjectSystem {
         continue;
       }
 
+      const root = npc.npc.root;
       const target = npc.route[npc.currentRouteIndex];
-      const toTarget = target.subtract(npc.root.position);
+      const toTarget = target.subtract(root.position);
       toTarget.y = 0;
 
       const distance = toTarget.length();
       if (distance <= Math.max(0.05, npc.speed * dt)) {
-        npc.root.position.x = target.x;
-        npc.root.position.z = target.z;
+        root.position.x = target.x;
+        root.position.z = target.z;
         npc.currentRouteIndex = (npc.currentRouteIndex + 1) % npc.route.length;
         continue;
       }
 
       const direction = toTarget.normalize();
-      npc.root.position.addInPlace(direction.scale(npc.speed * dt));
-      npc.root.rotation.y = Math.atan2(direction.x, direction.z);
+      root.position.addInPlace(direction.scale(npc.speed * dt));
+      root.rotation.y = Math.atan2(direction.x, direction.z);
 
-      const ground = this.#pickGroundAt(npc.root.position, groundMeshes);
+      const ground = this.#pickGroundAt(root.position, groundMeshes);
       if (ground) {
-        npc.root.position.y = ground.y + npc.groundOffsetY;
+        root.position.y = ground.y + npc.groundOffsetY;
       }
 
-      if (npc.walkAnimation && !npc.walkAnimation.isPlaying) {
-        playSceneObjectAnimation(npc, npc.walkAnimation, true);
-      }
+      npc.npc.playWalk(true);
     }
   }
 
@@ -361,7 +399,7 @@ export class LevelSceneObjectSystem {
     }
 
     const playerPosition = player.root.position;
-    const witchPosition = witch.root.position;
+    const witchPosition = witch.npc.root.position;
     const dx = playerPosition.x - witchPosition.x;
     const dz = playerPosition.z - witchPosition.z;
 
@@ -409,36 +447,26 @@ export class LevelSceneObjectSystem {
     }
   }
 
-  #stopWitchAnimations() {
-    for (const group of this.#witch?.container.animationGroups ?? []) {
-      group.stop();
-      group.reset();
-    }
-  }
-
   #playWitchIdle() {
     const witch = this.#witch;
-    if (!witch?.idleAnimation) {
+    if (!witch) {
       return;
     }
 
-    this.#stopWitchAnimations();
-    witch.idleAnimation.start(true);
+    if (!witch.npc.playOnlyBySuffix("Idle_Neutral", true)) {
+      witch.npc.playIdle(true);
+    }
   }
 
   #playWitchWave() {
     const witch = this.#witch;
-    if (!witch?.waveAnimation) {
-      this.#playWitchIdle();
+    if (!witch) {
       return;
     }
 
-    this.#stopWitchAnimations();
-    witch.waveAnimation.reset();
-    witch.waveAnimation.start(false);
-    witch.waveAnimation.onAnimationGroupEndObservable.addOnce(() => {
+    if (!witch.npc.playOnceBySuffix("Wave", () => this.#playWitchIdle())) {
       this.#playWitchIdle();
-    });
+    }
   }
 
   dispose() {
@@ -452,6 +480,12 @@ export class LevelSceneObjectSystem {
       object.root.dispose();
     }
     this.#activeSceneObjects = [];
+
+    for (const npc of this.#friendlyNpcs) {
+      npc.dispose();
+    }
+    this.#friendlyNpcs = [];
+
     this.#patrolNpcs = [];
     this.#witch = null;
     this.#potionPickups = [];

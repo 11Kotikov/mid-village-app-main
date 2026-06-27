@@ -26,6 +26,26 @@ export class AnimationController {
     return this.#playAnimationByNames([suffix], loop);
   }
 
+  playOnceBySuffix(suffix: string, onEnded?: () => void): boolean {
+    return this.playOnceByNames([suffix], onEnded);
+  }
+
+  playOnceByNames(names: readonly string[], onEnded?: () => void): boolean {
+    const selected = this.#findAnimationByNames(names);
+
+    if (!selected) {
+      return false;
+    }
+
+    this.#startAnimation(selected, false);
+
+    if (onEnded) {
+      selected.onAnimationGroupEndObservable.addOnce(onEnded);
+    }
+
+    return true;
+  }
+
   playWalk(loop = true): boolean {
     return this.#playAction("walk", loop);
   }
@@ -82,6 +102,21 @@ export class AnimationController {
   }
 
   #playAnimationByNames(names: readonly string[], loop = true): boolean {
+    const selected = this.#findAnimationByNames(names);
+
+    if (!selected) {
+      return false;
+    }
+
+    if (this.#activeAnimationName === selected.name && loop) {
+      return true;
+    }
+
+    this.#startAnimation(selected, loop);
+    return true;
+  }
+
+  #findAnimationByNames(names: readonly string[]): AnimationGroup | null {
     let selected: AnimationGroup | null = null;
     let selectedScore = 0;
 
@@ -96,14 +131,10 @@ export class AnimationController {
       }
     }
 
-    if (!selected) {
-      return false;
-    }
+    return selected;
+  }
 
-    if (this.#activeAnimationName === selected.name && loop) {
-      return true;
-    }
-
+  #startAnimation(selected: AnimationGroup, loop: boolean) {
     for (const group of this.#animationGroups) {
       if (group === selected) {
         continue;
@@ -116,7 +147,6 @@ export class AnimationController {
     selected.reset();
     selected.start(loop);
     this.#activeAnimationName = selected.name;
-    return true;
   }
 
   #scoreAnimationMatch(rawName: string, expectedName: string): number {
